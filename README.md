@@ -1,4 +1,4 @@
-# ![VPEX](https://simplex24.de/vpex/vpex_logo.png =200x100)
+# <img src="https://simplex24.de/vpex/vpex_logo.png" height="125"/>
 VPEX is a very basic and lightweight editor for large text/xml files. It allows you to **V**iew, **P**arse (syntax and schema validation) and **E**dit large **X**ml files. 
 
 VPEX was designed to be quick and reliable while working with files of around 50-200 MB. Even larger files _may_ work, but are not tested.
