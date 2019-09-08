@@ -7,6 +7,7 @@ import javafx.beans.property.SimpleBooleanProperty
 import javafx.scene.control.Alert.AlertType.INFORMATION
 import javafx.scene.control.TextInputDialog
 import javafx.stage.FileChooser
+import javafx.util.Duration
 import org.fxmisc.flowless.VirtualizedScrollPane
 import org.fxmisc.richtext.CodeArea
 import org.fxmisc.richtext.LineNumberFactory
@@ -52,7 +53,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                 }
                 menu("Settings") {
-                    item("Settings")
+                    item("Settings", "Shortcut+Alt+S").action {
+                        replaceWith<SettingsView>(ViewTransition.Metro(Duration.millis(500.0)))
+                    }
                 }
             }
         }
@@ -146,6 +149,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val file = fileChooser.showOpenDialog(FX.primaryStage)
         if (file != null && file.exists()) {
             this.file = file
+            val filePathTooLong = file.absolutePath.length > 100
+            val filePath = if (filePathTooLong) {
+                "..." + file.absolutePath.substring(file.absolutePath.length - 100)
+            } else {
+                "" + file.absolutePath
+            }
+            title = "VPEX - $filePath"
             this.codeArea.replaceText(file.readText())
             this.isDirty.set(false)
         }
