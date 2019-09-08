@@ -1,4 +1,4 @@
-# VPEX
+# ![VPEX](https://simplex24.de/vpex/vpex_logo.png)
 VPEX is a very basic and lightweight editor for large text/xml files. It allows you to **V**iew, **P**arse (syntax and schema validation) and **E**dit large **X**ml files. 
 
 VPEX was designed to be quick and reliable while working with files of around 50-200 MB. Even larger files _may_ work, but are not tested.
@@ -9,6 +9,9 @@ Common Texteditors like Notepad++ often have problems viewing and validating lar
 Since I sometimes work with files which are up to 200MB in size, I was in need for a tool that would let me open and validate large xml files.
 And so, the idea for vpex was born. It has a very basic feature set, but does exactly what I need it to do.  
 
+## Technology Stack
+VPEX is a Desktop Application written in Kotlin using the TornadoFX Framework, which itself makes use of the JavaFX toolkit.
+The Textarea used is from the library RichTextFX.
 
 ## Contributing
 
