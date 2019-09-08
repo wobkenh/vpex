@@ -11,9 +11,10 @@ class Vpex : App(MainView::class, InternalWindow.Styles::class) {
         stage.isMaximized = true
     }
 
-    override fun init() {
-        reloadViewsOnFocus()
-    }
+    // Hot Reloading of Components seems to break the application on ubuntu/javafx8
+    //    override fun init() {
+    //        reloadViewsOnFocus()
+    //    }
 }
 
 /**
