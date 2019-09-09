@@ -7,7 +7,7 @@ import javafx.application.Application
 import javafx.stage.Stage
 import tornadofx.*
 
-class Vpex : App(MainView::class, InternalWindow.Styles::class) {
+class Vpex : App(MainView::class, InternalWindow.Styles::class, Styles::class) {
     private val internalResourceController: InternalResourceController by inject()
 
     override fun start(stage: Stage) {

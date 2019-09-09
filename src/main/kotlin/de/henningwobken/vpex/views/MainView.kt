@@ -7,8 +7,11 @@ import de.henningwobken.vpex.xml.XmlErrorHandler
 import javafx.application.Platform
 import javafx.beans.property.BooleanProperty
 import javafx.beans.property.SimpleBooleanProperty
+import javafx.beans.property.SimpleIntegerProperty
+import javafx.geometry.Pos
 import javafx.scene.control.Alert.AlertType.INFORMATION
 import javafx.scene.control.TextInputDialog
+import javafx.scene.layout.Priority
 import javafx.stage.FileChooser
 import javafx.util.Duration
 import org.fxmisc.flowless.VirtualizedScrollPane
@@ -17,10 +20,17 @@ import org.fxmisc.richtext.LineNumberFactory
 import org.xml.sax.InputSource
 import tornadofx.*
 import java.io.File
+import java.io.StringReader
+import java.io.StringWriter
 import java.nio.file.Files
+import java.text.NumberFormat
 import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
+import javax.xml.transform.OutputKeys
+import javax.xml.transform.TransformerFactory
 import javax.xml.transform.sax.SAXSource
+import javax.xml.transform.stream.StreamResult
+import javax.xml.transform.stream.StreamSource
 import javax.xml.validation.SchemaFactory
 import kotlin.math.max
 import kotlin.math.min
@@ -29,10 +39,11 @@ import kotlin.math.min
 class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val settingsController: SettingsController by inject()
     private var codeArea: CodeArea by singleAssign()
-    private var isDirty: BooleanProperty = SimpleBooleanProperty(false)
+    private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
+    private val charCountProperty = SimpleIntegerProperty(0)
+    private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
     private var file: File? = null
     override val root = borderpane {
-        addClass(Styles.welcomeScreen)
         top {
             menubar {
                 menu("File") {
@@ -49,6 +60,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 menu("View") {
                     item("Move to", "Shortcut+G").action {
                         moveTo()
+                    }
+                }
+                menu("Edit") {
+                    item("Pretty print", "Shortcut+Shift+F").action {
+                        prettyPrint()
                     }
                 }
                 menu("Validate") {
@@ -72,8 +88,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         center = getVirtualScrollPane(getRichTextArea())
         bottom {
             hbox {
-                paddingAll = 10.0
+                hgrow = Priority.ALWAYS
+                alignment = Pos.CENTER
                 label {
+                    paddingAll = 10.0
+                    prefWidth = 110.0
+                    toggleClass(Styles.changed, isDirty)
+                    toggleClass(Styles.unchanged, isDirty.not())
                     bind(isDirty.stringBinding {
                         if (it!!) {
                             "Dirty"
@@ -82,6 +103,27 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         }
                     })
                 }
+                label("") {
+                    hgrow = Priority.ALWAYS
+                    maxWidth = Int.MAX_VALUE.toDouble()
+                }
+                button("Close").action {
+                    file = null
+                    codeArea.replaceText("")
+                    isDirty.set(false)
+                }
+                hbox(10) {
+                    paddingAll = 10.0
+                    label("Lines:")
+                    label(codeArea.paragraphs.sizeProperty.stringBinding {
+                        numberFormat.format(it)
+                    })
+                    label("Chars:")
+                    label(charCountProperty.stringBinding {
+                        numberFormat.format(it)
+                    })
+                }
+
             }
         }
     }
@@ -89,6 +131,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     override fun onDock() {
         super.onDock()
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
+        numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
     }
 
 
@@ -140,6 +183,21 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         alert(INFORMATION, "The council has decided", "This xml file is schematically compliant.")
     }
 
+    private fun prettyPrint() {
+        val transformerFactory = TransformerFactory.newInstance()
+        transformerFactory.setAttribute("indent-number", settingsController.getSettings().prettyPrintIndent)
+        val transformer = transformerFactory.newTransformer()
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes")
+        // Otherwise the root tag will be written into the first line
+        // see https://stackoverflow.com/questions/18249490/since-moving-to-java-1-7-xml-document-element-does-not-indent
+        transformer.setOutputProperty(OutputKeys.DOCTYPE_PUBLIC, "yes")
+        val stringWriter = StringWriter()
+        val xmlOutput = StreamResult(stringWriter)
+        val xmlInput = StreamSource(StringReader(this.codeArea.text))
+        transformer.transform(xmlInput, xmlOutput)
+        this.codeArea.replaceText(xmlOutput.writer.toString())
+    }
+
     private fun saveFile() {
         println("Saving")
         val file = this.file
@@ -157,6 +215,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         println("Saving as")
         val fileChooser = FileChooser();
         fileChooser.title = "Save as"
+        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
         val file = fileChooser.showSaveDialog(FX.primaryStage)
         if (file != null) {
             this.file = file
@@ -172,6 +231,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         println("Opening new file")
         val fileChooser = FileChooser();
         fileChooser.title = "Open new File"
+        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
         val file = fileChooser.showOpenDialog(FX.primaryStage)
         if (file != null && file.exists()) {
             this.file = file
@@ -202,6 +262,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         codeArea.plainTextChanges().subscribe {
             this.isDirty.set(true)
+            this.charCountProperty.set(this.codeArea.text.length)
         }
         this.codeArea = codeArea
         codeArea.paragraphGraphicFactory = LineNumberFactory.get(codeArea)

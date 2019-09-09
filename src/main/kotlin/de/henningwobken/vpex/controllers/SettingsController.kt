@@ -9,7 +9,7 @@ import java.util.*
 class SettingsController() : Controller() {
 
     private val configFile = File(System.getProperty("user.home") + "/.vpex/config.properties")
-    private lateinit var settings: Settings
+    private var settings: Settings
 
     init {
         settings = loadSettings()
@@ -25,6 +25,8 @@ class SettingsController() : Controller() {
         properties.setProperty("openerBasePath", settings.openerBasePath)
         properties.setProperty("schemaBasePath", settings.schemaBasePath)
         properties.setProperty("wrapText", settings.wrapText.toString())
+        properties.setProperty("prettyPrintIndent", settings.prettyPrintIndent.toString())
+        properties.setProperty("locale", settings.locale.toLanguageTag())
         properties.store(configFile.outputStream(), "")
     }
 
@@ -33,16 +35,26 @@ class SettingsController() : Controller() {
             if (!configFile.parentFile.exists()) {
                 configFile.parentFile.mkdir()
             }
-            Files.write(configFile.toPath(), listOf("openerBasePath=", "schemaBasePath="))
-            Settings("", "", true)
+            Files.write(configFile.toPath(), listOf("openerBasePath=", "schemaBasePath=", "wrapText=true", "prettyPrintIndent=4"))
+            Settings("./", "./", true, 4, Locale.ENGLISH)
         } else {
             val properties = Properties()
             properties.load(configFile.inputStream())
-            Settings(
-                    properties.getProperty("openerBasePath", ""),
-                    properties.getProperty("schemaBasePath", ""),
-                    properties.getProperty("wrapText", "true") == "true"
-            )
+            try {
+                Settings(
+                        properties.getProperty("openerBasePath", "./"),
+                        properties.getProperty("schemaBasePath", "./"),
+                        properties.getProperty("wrapText", "true") == "true",
+                        properties.getProperty("prettyPrintIndent", "4").toInt(),
+                        Locale.forLanguageTag(properties.getProperty("locale", "en"))
+                )
+            } catch (e: Exception) {
+                println("Error while parsing settings.")
+                e.printStackTrace()
+                println("Deleting old config file.")
+                configFile.delete()
+                loadSettings()
+            }
         }
     }
 }
