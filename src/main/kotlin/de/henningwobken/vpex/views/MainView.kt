@@ -2,6 +2,8 @@ package de.henningwobken.vpex.views
 
 import de.henningwobken.vpex.Styles
 import de.henningwobken.vpex.controllers.SettingsController
+import de.henningwobken.vpex.xml.ResourceResolver
+import de.henningwobken.vpex.xml.XmlErrorHandler
 import javafx.application.Platform
 import javafx.beans.property.BooleanProperty
 import javafx.beans.property.SimpleBooleanProperty
@@ -16,7 +18,10 @@ import org.xml.sax.InputSource
 import tornadofx.*
 import java.io.File
 import java.nio.file.Files
+import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
+import javax.xml.transform.sax.SAXSource
+import javax.xml.validation.SchemaFactory
 import kotlin.math.max
 import kotlin.math.min
 
@@ -31,7 +36,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         top {
             menubar {
                 menu("File") {
-                    item("Open").action {
+                    item("Open", "Shortcut+O").action {
                         openFile()
                     }
                     item("Save", "Shortcut+S").action {
@@ -120,12 +125,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val saxParser = saxParserFactory.newSAXParser()
         val xmlReader = saxParser.xmlReader
         xmlReader.parse(InputSource(text.byteInputStream()))
-        alert(INFORMATION, "The council has decided", "Die Syntax dieser XML-Datei ist valide!")
+        alert(INFORMATION, "The council has decided", "The syntax of this xml file is valid.")
     }
 
     private fun validateSchema() {
         println("Validating against schema")
-        // TODO: Config Base Path
+        val schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI)
+        schemaFactory.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
+        schemaFactory.errorHandler = XmlErrorHandler()
+        val schema = schemaFactory.newSchema()
+        val validator = schema.newValidator()
+        validator.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
+        validator.validate(SAXSource(InputSource(codeArea.text.byteInputStream())))
+        alert(INFORMATION, "The council has decided", "This xml file is schematically compliant.")
     }
 
     private fun saveFile() {
@@ -134,6 +146,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (file != null) {
             val text = codeArea.text
             Files.write(file.toPath(), text.toByteArray())
+            isDirty.set(false)
             println("Saved")
         } else {
             saveFileAs()
@@ -150,6 +163,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val text = codeArea.text
             Files.write(file.toPath(), text.toByteArray())
             setFileTitle(file)
+            isDirty.set(false)
             println("Saved as")
         }
     }
@@ -184,7 +198,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun getRichTextArea(): CodeArea {
         println("Creating text area")
         val codeArea = CodeArea()
-        println("Setting to " + settingsController.getSettings().wrapText)
+        println("Setting wrap text to " + settingsController.getSettings().wrapText)
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         codeArea.plainTextChanges().subscribe {
             this.isDirty.set(true)
