@@ -24,6 +24,7 @@ class SettingsController() : Controller() {
         val properties = Properties()
         properties.setProperty("openerBasePath", settings.openerBasePath)
         properties.setProperty("schemaBasePath", settings.schemaBasePath)
+        properties.setProperty("wrapText", settings.wrapText.toString())
         properties.store(configFile.outputStream(), "")
     }
 
@@ -33,13 +34,14 @@ class SettingsController() : Controller() {
                 configFile.parentFile.mkdir()
             }
             Files.write(configFile.toPath(), listOf("openerBasePath=", "schemaBasePath="))
-            Settings("", "")
+            Settings("", "", true)
         } else {
             val properties = Properties()
             properties.load(configFile.inputStream())
             Settings(
                     properties.getProperty("openerBasePath", ""),
-                    properties.getProperty("schemaBasePath", "")
+                    properties.getProperty("schemaBasePath", ""),
+                    properties.getProperty("wrapText", "true") == "true"
             )
         }
     }

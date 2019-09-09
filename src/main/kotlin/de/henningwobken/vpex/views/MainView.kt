@@ -1,6 +1,7 @@
 package de.henningwobken.vpex.views
 
 import de.henningwobken.vpex.Styles
+import de.henningwobken.vpex.controllers.SettingsController
 import javafx.application.Platform
 import javafx.beans.property.BooleanProperty
 import javafx.beans.property.SimpleBooleanProperty
@@ -21,6 +22,7 @@ import kotlin.math.min
 
 
 class MainView : View("VPEX: View, parse and edit large XML Files") {
+    private val settingsController: SettingsController by inject()
     private var codeArea: CodeArea by singleAssign()
     private var isDirty: BooleanProperty = SimpleBooleanProperty(false)
     private var file: File? = null
@@ -56,6 +58,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Settings", "Shortcut+Alt+S").action {
                         replaceWith<SettingsView>(ViewTransition.Metro(Duration.millis(500.0)))
                     }
+                    item("About").action {
+                        replaceWith<AboutView>(ViewTransition.Metro(Duration.millis(500.0)))
+                    }
                 }
             }
         }
@@ -75,6 +80,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
         }
     }
+
+    override fun onDock() {
+        super.onDock()
+        codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
+    }
+
 
     private fun moveTo() {
         val dialog = TextInputDialog("Line:Column")
@@ -138,6 +149,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             this.file = file
             val text = codeArea.text
             Files.write(file.toPath(), text.toByteArray())
+            setFileTitle(file)
             println("Saved as")
         }
     }
@@ -149,16 +161,20 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val file = fileChooser.showOpenDialog(FX.primaryStage)
         if (file != null && file.exists()) {
             this.file = file
-            val filePathTooLong = file.absolutePath.length > 100
-            val filePath = if (filePathTooLong) {
-                "..." + file.absolutePath.substring(file.absolutePath.length - 100)
-            } else {
-                "" + file.absolutePath
-            }
-            title = "VPEX - $filePath"
+            setFileTitle(file)
             this.codeArea.replaceText(file.readText())
             this.isDirty.set(false)
         }
+    }
+
+    private fun setFileTitle(file: File) {
+        val filePathTooLong = file.absolutePath.length > 100
+        val filePath = if (filePathTooLong) {
+            "..." + file.absolutePath.substring(file.absolutePath.length - 100)
+        } else {
+            "" + file.absolutePath
+        }
+        title = "VPEX - $filePath"
     }
 
     private fun getVirtualScrollPane(codeArea: CodeArea): VirtualizedScrollPane<CodeArea> {
@@ -168,7 +184,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun getRichTextArea(): CodeArea {
         println("Creating text area")
         val codeArea = CodeArea()
-        codeArea.wrapTextProperty().set(true)
+        println("Setting to " + settingsController.getSettings().wrapText)
+        codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         codeArea.plainTextChanges().subscribe {
             this.isDirty.set(true)
         }
