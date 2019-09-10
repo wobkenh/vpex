@@ -32,6 +32,7 @@ import javax.xml.transform.sax.SAXSource
 import javax.xml.transform.stream.StreamResult
 import javax.xml.transform.stream.StreamSource
 import javax.xml.validation.SchemaFactory
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 
@@ -43,6 +44,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val charCountProperty = SimpleIntegerProperty(0)
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
     private var file: File? = null
+    // Pagination
+    private var fullText: String = ""
+    private val pagination = SimpleBooleanProperty()
+    private val page = SimpleIntegerProperty(1)
+    private var maxPage = SimpleIntegerProperty(0)
+
+    // UI
     override val root = borderpane {
         top {
             menubar {
@@ -87,7 +95,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
         center = getVirtualScrollPane(getRichTextArea())
         bottom {
-            hbox {
+            hbox(10) {
                 hgrow = Priority.ALWAYS
                 alignment = Pos.CENTER
                 label {
@@ -107,6 +115,35 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     hgrow = Priority.ALWAYS
                     maxWidth = Int.MAX_VALUE.toDouble()
                 }
+                hbox(10) {
+                    alignment = Pos.CENTER
+                    visibleWhen(pagination)
+                    button("<<") {
+                        disableWhen {
+                            page.isEqualTo(1)
+                        }
+                    }.action {
+                        val dirty = isDirty.get()
+                        moveToPage(page.get() - 1)
+                        isDirty.set(dirty)
+                    }
+                    hbox(5) {
+                        alignment = Pos.CENTER
+                        // TODO: Textfield
+                        label(page)
+                        label("/")
+                        label(maxPage)
+                    }
+                    button(">>") {
+                        disableWhen {
+                            page.greaterThanOrEqualTo(maxPage)
+                        }
+                    }.action {
+                        val dirty = isDirty.get()
+                        moveToPage(page.get() + 1)
+                        isDirty.set(dirty)
+                    }
+                }
                 button("Close").action {
                     file = null
                     codeArea.replaceText("")
@@ -115,6 +152,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 hbox(10) {
                     paddingAll = 10.0
                     label("Lines:")
+                    // TODO: Calculate Lines when using pagination
                     label(codeArea.paragraphs.sizeProperty.stringBinding {
                         numberFormat.format(it)
                     })
@@ -132,8 +170,53 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         super.onDock()
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
+        checkForPagination()
     }
 
+    private fun checkForPagination() {
+        if (this.settingsController.getSettings().pagination) {
+            // Pagination might have been disabled previously
+            // Text might still be only in codeArea
+            val textLength = max(this.fullText.length, this.codeArea.text.length)
+            if (textLength > this.settingsController.getSettings().paginationThreshold) {
+                if (this.fullText == "") {
+                    println("Saving Code from CodeArea to FullText")
+                    this.fullText = this.codeArea.text
+                    this.maxPage.set(calcMaxPage())
+                    this.moveToPage(1)
+                }
+                pagination.set(true)
+            } else {
+                if (this.codeArea.text.length < this.fullText.length) {
+                    this.codeArea.replaceText(this.fullText)
+                }
+                this.fullText = ""
+                this.pagination.set(false)
+            }
+        } else {
+            if (this.codeArea.text.length < this.fullText.length) {
+                this.codeArea.replaceText(this.fullText)
+            }
+            this.fullText = ""
+            this.pagination.set(false)
+        }
+    }
+
+    private fun calcMaxPage(): Int {
+        val max = ceil(this.fullText.length / this.settingsController.getSettings().pageSize.toDouble()).toInt()
+        println("Settings max page to $max")
+        return max
+    }
+
+    private fun moveToPage(page: Int) {
+        val pageSize = settingsController.getSettings().pageSize
+        if (this.isDirty.get()) {
+            this.fullText = this.fullText.replaceRange((this.page.get() - 1) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
+            this.maxPage.set(calcMaxPage())
+        }
+        this.page.set(page)
+        this.codeArea.replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
+    }
 
     private fun moveTo() {
         val dialog = TextInputDialog("Line:Column")
@@ -150,6 +233,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 userLine = it.toInt()
                 userColumn = 0
             }
+            // TODO: Pagination
             val line = max(min(userLine, codeArea.paragraphs.size), 1) - 1
             val column = min(userColumn, codeArea.getParagraph(line).length())
             Platform.runLater {
@@ -162,12 +246,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun validateSyntax() {
         println("Validating Syntax...")
-        val text = codeArea.text
         val saxParserFactory = SAXParserFactory.newInstance()
         saxParserFactory.isNamespaceAware = true
         val saxParser = saxParserFactory.newSAXParser()
         val xmlReader = saxParser.xmlReader
-        xmlReader.parse(InputSource(text.byteInputStream()))
+        xmlReader.parse(InputSource(getFullText().byteInputStream()))
         alert(INFORMATION, "The council has decided", "The syntax of this xml file is valid.")
     }
 
@@ -179,7 +262,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val schema = schemaFactory.newSchema()
         val validator = schema.newValidator()
         validator.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
-        validator.validate(SAXSource(InputSource(codeArea.text.byteInputStream())))
+        validator.validate(SAXSource(InputSource(getFullText().byteInputStream())))
         alert(INFORMATION, "The council has decided", "This xml file is schematically compliant.")
     }
 
@@ -193,16 +276,22 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         transformer.setOutputProperty(OutputKeys.DOCTYPE_PUBLIC, "yes")
         val stringWriter = StringWriter()
         val xmlOutput = StreamResult(stringWriter)
-        val xmlInput = StreamSource(StringReader(this.codeArea.text))
+        val xmlInput = StreamSource(StringReader(getFullText()))
         transformer.transform(xmlInput, xmlOutput)
-        this.codeArea.replaceText(xmlOutput.writer.toString())
+        if (pagination.get()) {
+            this.fullText = xmlOutput.writer.toString()
+            this.moveToPage(1)
+        } else {
+            this.codeArea.replaceText(xmlOutput.writer.toString())
+        }
+
     }
 
     private fun saveFile() {
         println("Saving")
         val file = this.file
         if (file != null) {
-            val text = codeArea.text
+            val text = getFullText()
             Files.write(file.toPath(), text.toByteArray())
             isDirty.set(false)
             println("Saved")
@@ -219,7 +308,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val file = fileChooser.showSaveDialog(FX.primaryStage)
         if (file != null) {
             this.file = file
-            val text = codeArea.text
+            val text = getFullText()
             Files.write(file.toPath(), text.toByteArray())
             setFileTitle(file)
             isDirty.set(false)
@@ -236,7 +325,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (file != null && file.exists()) {
             this.file = file
             setFileTitle(file)
-            this.codeArea.replaceText(file.readText())
+            if (this.settingsController.getSettings().pagination) {
+                this.fullText = file.readText()
+                checkForPagination()
+                if (this.pagination.get()) {
+                    this.maxPage.set(calcMaxPage())
+                    this.moveToPage(1)
+                }
+            } else {
+                this.codeArea.replaceText(file.readText())
+            }
             this.isDirty.set(false)
         }
     }
@@ -262,10 +360,27 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         codeArea.plainTextChanges().subscribe {
             this.isDirty.set(true)
-            this.charCountProperty.set(this.codeArea.text.length)
+            this.charCountProperty.set(
+                    if (this.pagination.get()) {
+                        this.fullText.length - this.settingsController.getSettings().pageSize + this.codeArea.text.length
+                    } else {
+                        this.codeArea.text.length
+                    }
+            )
+
         }
         this.codeArea = codeArea
         codeArea.paragraphGraphicFactory = LineNumberFactory.get(codeArea)
         return codeArea
+    }
+
+    private fun getFullText(): String {
+        return if (this.pagination.get()) {
+            // fullText might be out of sync
+            if (this.isDirty.get()) {
+                moveToPage(this.page.get()) // Syncs the page with the fulltext
+            }
+            this.fullText
+        } else this.codeArea.text
     }
 }

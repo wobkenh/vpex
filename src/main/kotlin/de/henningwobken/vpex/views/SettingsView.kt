@@ -18,6 +18,9 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val openerBasePathProperty = SimpleStringProperty()
     private val prettyPrintIndentProperty = SimpleIntegerProperty()
     private val localeProperty = SimpleStringProperty()
+    private val paginationProperty = SimpleBooleanProperty()
+    private val pageSizeProperty = SimpleIntegerProperty()
+    private val paginationThresholdProperty = SimpleIntegerProperty()
 
     init {
         val settings = settingsController.getSettings()
@@ -26,7 +29,9 @@ class SettingsView : View("VPEX - Einstellungen") {
         openerBasePathProperty.set(settings.openerBasePath)
         prettyPrintIndentProperty.set(settings.prettyPrintIndent)
         localeProperty.set(settings.locale.toLanguageTag())
-
+        paginationProperty.set(settings.pagination)
+        pageSizeProperty.set(settings.pageSize)
+        paginationThresholdProperty.set(settings.paginationThreshold)
     }
 
     override val root = borderpane {
@@ -87,6 +92,26 @@ class SettingsView : View("VPEX - Einstellungen") {
                 field("Pretty print indent") {
                     textfield(prettyPrintIndentProperty) {
                         prefWidth = 200.0
+                        maxWidth = 200.0
+                    }
+                }
+            }
+            fieldset("Pagination") {
+                field("Paginate large files") {
+                    checkbox("", paginationProperty)
+                }
+                field("Page size") {
+                    tooltip("Number of characters per page")
+                    textfield(pageSizeProperty) {
+                        prefWidth = 200.0
+                        maxWidth = 200.0
+                    }
+                }
+                field("Pagination threshold") {
+                    tooltip("Minimum number of characters to activate pagination")
+                    textfield(paginationThresholdProperty) {
+                        prefWidth = 200.0
+                        maxWidth = 200.0
                     }
                 }
             }
@@ -108,7 +133,10 @@ class SettingsView : View("VPEX - Einstellungen") {
                 schemaBasePathProperty.get(),
                 wrapProperty.get(),
                 prettyPrintIndentProperty.get(),
-                Locale.forLanguageTag(localeProperty.get())
+                Locale.forLanguageTag(localeProperty.get()),
+                paginationProperty.get(),
+                pageSizeProperty.get(),
+                paginationThresholdProperty.get()
         )
         settingsController.saveSettings(settings)
         backToMainScreen()

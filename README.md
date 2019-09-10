@@ -3,6 +3,10 @@ VPEX is a very basic and lightweight editor for large text/xml files. It allows 
 
 VPEX was designed to be quick and reliable while working with files of around 50-200 MB. Even larger files _may_ work, but are not tested.
 
+## Download
+
+You can download the jar from [https://simplex24.de/vpex/vpex.jar](https://simplex24.de/vpex/vpex.jar).
+
 ## Motivation
 
 Common Texteditors like Notepad++ often have problems viewing and validating large xml files. Even unix programs like `less` sometimes struggle with large files.

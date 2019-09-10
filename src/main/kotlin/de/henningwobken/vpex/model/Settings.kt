@@ -7,5 +7,8 @@ class Settings(
         val schemaBasePath: String,
         val wrapText: Boolean,
         val prettyPrintIndent: Int,
-        val locale: Locale
+        val locale: Locale,
+        val pagination: Boolean,
+        val pageSize: Int,
+        val paginationThreshold: Int
 )
