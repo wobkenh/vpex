@@ -13,7 +13,10 @@ import javafx.scene.control.Alert.AlertType.INFORMATION
 import javafx.scene.control.TextInputDialog
 import javafx.scene.input.TransferMode
 import javafx.scene.layout.Priority
+import javafx.scene.paint.Paint
 import javafx.stage.FileChooser
+import javafx.stage.Modality
+import javafx.stage.StageStyle
 import javafx.util.Duration
 import org.fxmisc.flowless.VirtualizedScrollPane
 import org.fxmisc.richtext.CodeArea
@@ -39,7 +42,7 @@ import kotlin.math.min
 
 class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val settingsController: SettingsController by inject()
-    private var codeArea: CodeArea by singleAssign()
+    public var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
     private val charCountProperty = SimpleIntegerProperty(0)
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
@@ -73,10 +76,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Move to", "Shortcut+G").action {
                         moveTo()
                     }
+                    item("Search", "Shortcut+F").action {
+                        find<SearchAndReplaceView>().openModal(StageStyle.UTILITY)
+                    }
                 }
                 menu("Edit") {
                     item("Pretty print", "Shortcut+Shift+F").action {
                         prettyPrint()
+                    }
+                    item("Replace", "Shortcut+R").action {
+                        find<SearchAndReplaceView>().openModal(StageStyle.UTILITY, Modality.WINDOW_MODAL)
                     }
                 }
                 menu("Validate") {
@@ -301,7 +310,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.codeArea.replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
     }
 
-    private fun moveToPage(page: Int) {
+    public fun moveToPage(page: Int) {
         moveToPage(page, false)
     }
 
@@ -346,10 +355,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
     }
 
+    public fun moveToIndex(index: Int) {
+        if (pagination.get()) {
+            moveToLineColumn(0, (this.page.get() * this.settingsController.getSettings().pageSize) - index)
+        } else {
+            moveToLineColumn(0, index)
+        }
+    }
+
     /**
      * Moves the cursor to the specified line/column
      */
-    private fun moveToLineColumn(line: Int, column: Int) {
+    public fun moveToLineColumn(line: Int, column: Int) {
         Platform.runLater {
             codeArea.moveTo(codeArea.position(line, column).toOffset())
             codeArea.requestFollowCaret()
@@ -486,9 +503,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         this.codeArea.text.length
                     }
             )
-
         }
         this.codeArea = codeArea
+        this.codeArea.isLineHighlighterOn = true
+        this.codeArea.setLineHighlighterFill(Paint.valueOf("#eee"))
         // Original: LineNumberFactory.get(codeArea)
         codeArea.paragraphGraphicFactory = PaginatedLineNumberFactory(codeArea) {
             // Needs to return the starting line count of the current page
@@ -502,7 +520,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         return codeArea
     }
 
-    private fun getFullText(): String {
+    public fun getFullText(): String {
         return if (this.pagination.get()) {
             // fullText might be out of sync
             if (this.isDirty.get()) {
