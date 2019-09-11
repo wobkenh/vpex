@@ -11,6 +11,7 @@ import javafx.beans.property.SimpleIntegerProperty
 import javafx.geometry.Pos
 import javafx.scene.control.Alert.AlertType.INFORMATION
 import javafx.scene.control.TextInputDialog
+import javafx.scene.input.TransferMode
 import javafx.scene.layout.Priority
 import javafx.stage.FileChooser
 import javafx.util.Duration
@@ -166,6 +167,31 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
 
             }
+        }
+
+        // Drag and Drop handling
+        setOnDragOver { event ->
+            if (event.dragboard.hasFiles()) {
+                /* allow for both copying and moving, whatever user chooses */
+                event.acceptTransferModes(TransferMode.COPY);
+            }
+            event.consume();
+        }
+        setOnDragDropped { event ->
+            val dragboard = event.dragboard
+            var success = false
+            if (dragboard.hasFiles()) {
+                val file = dragboard.files.first()
+                if (file.exists() && file.isFile) {
+                    openFile(file)
+                }
+                success = true
+            }
+            /* let the source know whether the string was successfully
+                 * transferred and used */
+            event.isDropCompleted = success
+
+            event.consume()
         }
     }
 
@@ -410,21 +436,26 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
         val file = fileChooser.showOpenDialog(FX.primaryStage)
         if (file != null && file.exists()) {
-            this.file = file
-            setFileTitle(file)
-            if (this.settingsController.getSettings().pagination) {
-                this.fullText = file.readText()
-                checkForPagination()
-                if (this.pagination.get()) {
-                    this.maxPage.set(calcMaxPage())
-                    this.calcLinesAllPages()
-                    this.moveToPage(1)
-                }
-            } else {
-                this.codeArea.replaceText(file.readText())
-            }
-            this.isDirty.set(false)
+            openFile(file)
         }
+    }
+
+    private fun openFile(file: File) {
+        println("Opening file ${file.absolutePath}")
+        this.file = file
+        setFileTitle(file)
+        if (this.settingsController.getSettings().pagination) {
+            this.fullText = file.readText()
+            checkForPagination()
+            if (this.pagination.get()) {
+                this.maxPage.set(calcMaxPage())
+                this.calcLinesAllPages()
+                this.moveToPage(1)
+            }
+        } else {
+            this.codeArea.replaceText(file.readText())
+        }
+        this.isDirty.set(false)
     }
 
     private fun setFileTitle(file: File) {
