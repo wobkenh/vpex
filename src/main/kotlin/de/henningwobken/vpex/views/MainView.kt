@@ -16,7 +16,6 @@ import javafx.stage.FileChooser
 import javafx.util.Duration
 import org.fxmisc.flowless.VirtualizedScrollPane
 import org.fxmisc.richtext.CodeArea
-import org.fxmisc.richtext.LineNumberFactory
 import org.xml.sax.InputSource
 import tornadofx.*
 import java.io.File
@@ -44,11 +43,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val charCountProperty = SimpleIntegerProperty(0)
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
     private var file: File? = null
+    private var lineCount = SimpleIntegerProperty(0)
     // Pagination
     private var fullText: String = ""
     private val pagination = SimpleBooleanProperty()
     private val page = SimpleIntegerProperty(1)
     private var maxPage = SimpleIntegerProperty(0)
+    private var pageLineCounts = IntArray(0) // Line count of each page
+    private var pageStartingLineCounts = IntArray(0) // For each page the number of lines before this page
+    private val pageTotalLineCount = SimpleIntegerProperty(0)
 
     // UI
     override val root = borderpane {
@@ -153,7 +156,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     paddingAll = 10.0
                     label("Lines:")
                     // TODO: Calculate Lines when using pagination
-                    label(codeArea.paragraphs.sizeProperty.stringBinding {
+                    label(lineCount.stringBinding {
                         numberFormat.format(it)
                     })
                     label("Chars:")
@@ -168,38 +171,89 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     override fun onDock() {
         super.onDock()
+        println("Docking view")
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
         checkForPagination()
     }
 
     private fun checkForPagination() {
+        println("Checking for Pagination")
         if (this.settingsController.getSettings().pagination) {
             // Pagination might have been disabled previously
             // Text might still be only in codeArea
             val textLength = max(this.fullText.length, this.codeArea.text.length)
             if (textLength > this.settingsController.getSettings().paginationThreshold) {
+                pagination.set(true)
                 if (this.fullText == "") {
+                    val wasDirty = this.isDirty.get()
                     println("Saving Code from CodeArea to FullText")
                     this.fullText = this.codeArea.text
                     this.maxPage.set(calcMaxPage())
-                    this.moveToPage(1)
+                    this.calcLinesAllPages()
+                    this.moveToPage(1, true)
+                    this.lineCount.bind(this.pageTotalLineCount)
+                    this.isDirty.set(wasDirty)
                 }
-                pagination.set(true)
+                println("Pagination enabled")
             } else {
-                if (this.codeArea.text.length < this.fullText.length) {
-                    this.codeArea.replaceText(this.fullText)
-                }
-                this.fullText = ""
-                this.pagination.set(false)
+                disablePagination()
+                println("Pagination disabled since text is too short")
             }
         } else {
-            if (this.codeArea.text.length < this.fullText.length) {
-                this.codeArea.replaceText(this.fullText)
-            }
-            this.fullText = ""
-            this.pagination.set(false)
+            disablePagination()
+            println("Pagination disabled in config")
         }
+    }
+
+    private fun disablePagination() {
+        val wasDirty = this.isDirty.get()
+        this.pagination.set(false)
+        if (this.codeArea.text.length < this.fullText.length) {
+            this.codeArea.replaceText(this.fullText)
+        }
+        this.fullText = ""
+        this.lineCount.bind(this.codeArea.paragraphs.sizeProperty)
+        this.isDirty.set(wasDirty)
+    }
+
+    private fun calcLinesAllPages() {
+        this.pageLineCounts = IntArray(this.maxPage.get())
+        this.pageStartingLineCounts = IntArray(this.maxPage.get())
+        val pageSize = this.settingsController.getSettings().pageSize
+        for (page in 1..maxPage.get()) {
+            val pageIndex = page - 1
+            pageLineCounts[pageIndex] = countLinesString(this.fullText.substring(pageIndex * pageSize, min(this.fullText.length, page * pageSize)))
+        }
+        // for page 1 there are no previous pages
+        pageStartingLineCounts[0] = 0
+        for (page in 2..maxPage.get()) {
+            val pageIndex = page - 1
+            pageStartingLineCounts[pageIndex] = pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1]
+        }
+        // every page break introduces a new line break, so we need to subtract that
+        this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last() - this.maxPage.get() + 1)
+    }
+
+    private fun countLinesString(string: String): Int {
+        var lines = 1
+        var carriageReturnFlag = false
+        for (index in string.indices) {
+            val char = string[index]
+            if (char == '\n') {
+                if (carriageReturnFlag) {
+                    carriageReturnFlag = false
+                } else {
+                    lines++
+                }
+            } else if (char == '\r') {
+                carriageReturnFlag = true
+                lines++
+            } else {
+                carriageReturnFlag = false
+            }
+        }
+        return lines
     }
 
     private fun calcMaxPage(): Int {
@@ -208,16 +262,26 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         return max
     }
 
-    private fun moveToPage(page: Int) {
+    private fun moveToPage(page: Int, disableSync: Boolean) {
+        println("Moving to page $page ${if (disableSync) "with" else "without"} sync")
         val pageSize = settingsController.getSettings().pageSize
-        if (this.isDirty.get()) {
+        if (this.isDirty.get() && !disableSync) {
+            println("Syncing CodeArea text to full text")
             this.fullText = this.fullText.replaceRange((this.page.get() - 1) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
             this.maxPage.set(calcMaxPage())
+            this.calcLinesAllPages()
         }
         this.page.set(page)
         this.codeArea.replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
     }
 
+    private fun moveToPage(page: Int) {
+        moveToPage(page, false)
+    }
+
+    /**
+     * Asks the user for input to go to a specific position in the file
+     */
     private fun moveTo() {
         val dialog = TextInputDialog("Line:Column")
         dialog.title = "Move to..."
@@ -233,14 +297,37 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 userLine = it.toInt()
                 userColumn = 0
             }
-            // TODO: Pagination
-            val line = max(min(userLine, codeArea.paragraphs.size), 1) - 1
-            val column = min(userColumn, codeArea.getParagraph(line).length())
-            Platform.runLater {
-                codeArea.moveTo(codeArea.position(line, column).toOffset())
-                codeArea.requestFollowCaret()
-                println("Moved to $userLine")
+            if (pagination.get()) {
+                moveToPage(this.page.get()) // Might change starting line counts if there are unsaved changes
+                var page = 1
+                for (i in this.maxPage.get() downTo 1) {
+                    if (userLine > pageStartingLineCounts[i - 1]) {
+                        page = i
+                        break
+                    }
+                }
+                if (page != this.page.get()) {
+                    moveToPage(page)
+                }
+                val line = max(min(userLine - pageStartingLineCounts[page - 1], codeArea.paragraphs.size), 1) - 1
+                val column = min(userColumn, codeArea.getParagraph(line).length())
+                moveToLineColumn(line, column)
+            } else {
+                val line = max(min(userLine, codeArea.paragraphs.size), 1) - 1
+                val column = min(userColumn, codeArea.getParagraph(line).length())
+                moveToLineColumn(line, column)
             }
+        }
+    }
+
+    /**
+     * Moves the cursor to the specified line/column
+     */
+    private fun moveToLineColumn(line: Int, column: Int) {
+        Platform.runLater {
+            codeArea.moveTo(codeArea.position(line, column).toOffset())
+            codeArea.requestFollowCaret()
+            println("Moved to $line:$column")
         }
     }
 
@@ -330,6 +417,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 checkForPagination()
                 if (this.pagination.get()) {
                     this.maxPage.set(calcMaxPage())
+                    this.calcLinesAllPages()
                     this.moveToPage(1)
                 }
             } else {
@@ -370,7 +458,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
         }
         this.codeArea = codeArea
-        codeArea.paragraphGraphicFactory = LineNumberFactory.get(codeArea)
+        // Original: LineNumberFactory.get(codeArea)
+        codeArea.paragraphGraphicFactory = PaginatedLineNumberFactory(codeArea) {
+            // Needs to return the starting line count of the current page
+            if (this.pagination.get()) {
+                pageStartingLineCounts[this.page.get() - 1]
+            } else {
+                0
+            }
+        }
+
         return codeArea
     }
 
