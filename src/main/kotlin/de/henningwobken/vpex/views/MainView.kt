@@ -8,15 +8,17 @@ import javafx.application.Platform
 import javafx.beans.property.BooleanProperty
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleIntegerProperty
+import javafx.beans.property.SimpleStringProperty
 import javafx.geometry.Pos
+import javafx.scene.control.Alert
 import javafx.scene.control.Alert.AlertType.INFORMATION
 import javafx.scene.control.TextInputDialog
+import javafx.scene.input.KeyCode
 import javafx.scene.input.TransferMode
+import javafx.scene.layout.BorderPane
 import javafx.scene.layout.Priority
 import javafx.scene.paint.Paint
 import javafx.stage.FileChooser
-import javafx.stage.Modality
-import javafx.stage.StageStyle
 import javafx.util.Duration
 import org.fxmisc.flowless.VirtualizedScrollPane
 import org.fxmisc.richtext.CodeArea
@@ -42,12 +44,16 @@ import kotlin.math.min
 
 class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val settingsController: SettingsController by inject()
-    public var codeArea: CodeArea by singleAssign()
+    private var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
     private val charCountProperty = SimpleIntegerProperty(0)
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
     private var file: File? = null
     private var lineCount = SimpleIntegerProperty(0)
+    // Search and Replace
+    private val showReplaceProperty = SimpleBooleanProperty(false)
+    private val findProperty = SimpleStringProperty("")
+    private val replaceProperty = SimpleStringProperty("")
     // Pagination
     private var fullText: String = ""
     private val pagination = SimpleBooleanProperty()
@@ -59,7 +65,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var textOperationLock = false // If set to true, ignore changes in code area for line counts / dirty detection
 
     // UI
-    override val root = borderpane {
+    override val root: BorderPane = borderpane {
         top {
             menubar {
                 menu("File") {
@@ -78,7 +84,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         moveTo()
                     }
                     item("Search", "Shortcut+F").action {
-                        find<SearchAndReplaceView>().openModal(StageStyle.UTILITY)
+                        //                        find<SearchAndReplaceView>().openModal(StageStyle.UTILITY)
+                        showReplaceProperty.set(true)
                     }
                 }
                 menu("Edit") {
@@ -86,7 +93,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         prettyPrint()
                     }
                     item("Replace", "Shortcut+R").action {
-                        find<SearchAndReplaceView>().openModal(StageStyle.UTILITY, Modality.WINDOW_MODAL)
+                        //                        find<SearchAndReplaceView>().openModal(StageStyle.UTILITY, Modality.WINDOW_MODAL)
+                        showReplaceProperty.set(true)
                     }
                 }
                 menu("Validate") {
@@ -107,7 +115,40 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
             }
         }
-        center = getVirtualScrollPane(getRichTextArea())
+        center = vbox {
+            hbox(20) {
+                this.removeWhen(showReplaceProperty.not())
+                form {
+                    fieldset {
+                        field("Find") {
+                            textfield(findProperty) {
+                                val textfield = this
+                                showReplaceProperty.onChange {
+                                    if (it) {
+                                        textfield.requestFocus()
+                                    }
+                                }
+                                this.setOnAction {
+                                    findNext()
+                                }
+                            }
+
+                        }
+                        field("Replace") {
+                            textfield(replaceProperty)
+                        }
+                    }
+                }
+                label("") {
+                    hgrow = Priority.ALWAYS
+                    maxWidth = Int.MAX_VALUE.toDouble()
+                }
+                button("X").action {
+                    showReplaceProperty.set(false)
+                }
+            }
+            add(getVirtualScrollPane(getRichTextArea()))
+        }
         bottom {
             hbox(10) {
                 hgrow = Priority.ALWAYS
@@ -185,9 +226,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         setOnDragOver { event ->
             if (event.dragboard.hasFiles()) {
                 /* allow for both copying and moving, whatever user chooses */
-                event.acceptTransferModes(TransferMode.COPY);
+                event.acceptTransferModes(TransferMode.COPY)
             }
-            event.consume();
+            event.consume()
         }
         setOnDragDropped { event ->
             val dragboard = event.dragboard
@@ -205,6 +246,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
             event.consume()
         }
+
     }
 
     override fun onDock() {
@@ -368,7 +410,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
     }
 
-    public fun moveToIndex(index: Int) {
+    private fun moveToIndex(index: Int) {
         if (pagination.get()) {
             moveToLineColumn(0, (this.page.get() * this.settingsController.getSettings().pageSize) - index)
         } else {
@@ -379,7 +421,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     /**
      * Moves the cursor to the specified line/column
      */
-    public fun moveToLineColumn(line: Int, column: Int) {
+    private fun moveToLineColumn(line: Int, column: Int) {
         Platform.runLater {
             codeArea.moveTo(codeArea.position(line, column).toOffset())
             codeArea.requestFollowCaret()
@@ -445,7 +487,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun saveFileAs() {
         println("Saving as")
-        val fileChooser = FileChooser();
+        val fileChooser = FileChooser()
         fileChooser.title = "Save as"
         fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
         val file = fileChooser.showSaveDialog(FX.primaryStage)
@@ -461,7 +503,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun openFile() {
         println("Opening new file")
-        val fileChooser = FileChooser();
+        val fileChooser = FileChooser()
         fileChooser.title = "Open new File"
         fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
         val file = fileChooser.showOpenDialog(FX.primaryStage)
@@ -480,6 +522,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         } else {
             replaceText(file.readText())
         }
+        this.codeArea.moveTo(0, 0)
         this.isDirty.set(false)
     }
 
@@ -494,7 +537,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun getVirtualScrollPane(codeArea: CodeArea): VirtualizedScrollPane<CodeArea> {
-        return VirtualizedScrollPane(codeArea)
+        val scrollPane = VirtualizedScrollPane(codeArea)
+        scrollPane.vgrow = Priority.ALWAYS
+        return scrollPane
     }
 
     private fun getRichTextArea(): CodeArea {
@@ -521,6 +566,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
         }
         this.codeArea = codeArea
+        this.codeArea.setOnKeyPressed {
+            if (it.code == KeyCode.ESCAPE) {
+                showReplaceProperty.set(false)
+            }
+        }
         this.codeArea.isLineHighlighterOn = true
         this.codeArea.setLineHighlighterFill(Paint.valueOf("#eee"))
         // Original: LineNumberFactory.get(codeArea)
@@ -536,7 +586,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         return codeArea
     }
 
-    public fun getFullText(): String {
+    fun getFullText(): String {
         return if (this.pagination.get()) {
             // fullText might be out of sync
             if (this.isDirty.get()) {
@@ -544,5 +594,23 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
             this.fullText
         } else this.codeArea.text
+    }
+
+
+    // Search and replace functions
+
+    private fun findNext() {
+        val offset = codeArea.caretPosition
+        val fullText = getFullText()
+        val index = fullText.indexOf(this.findProperty.get(), offset + 1)
+        if (index >= 0) {
+            moveToIndex(index)
+            // TODO: Select searched word / Move focus
+            Platform.runLater {
+                codeArea.selectRange(codeArea.anchor, codeArea.anchor + this.findProperty.get().length)
+            }
+        } else {
+            alert(Alert.AlertType.WARNING, "Ouch", "I went a bit over the edge there. There are no more results.")
+        }
     }
 }

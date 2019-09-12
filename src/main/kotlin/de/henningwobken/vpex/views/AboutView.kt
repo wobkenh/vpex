@@ -3,6 +3,7 @@ package de.henningwobken.vpex.views
 import de.henningwobken.vpex.controllers.InternalResourceController
 import de.henningwobken.vpex.model.InternalResource
 import javafx.geometry.Pos
+import javafx.scene.Cursor
 import javafx.util.Duration
 import tornadofx.*
 import java.awt.Desktop
@@ -41,6 +42,33 @@ class AboutView : View("My View") {
                     }
                 }.start()
             }
+            label("")
+            hbox(50) {
+                alignment = Pos.TOP_CENTER
+                vbox(25) {
+                    alignment = Pos.TOP_CENTER
+                    cursor = Cursor.HAND
+                    label("You like VPEX? Consider donating:")
+                    imageview(internalResourceController.getAsImage(InternalResource.DONATE_BUTTON)) {
+                        setOnMouseClicked {
+                            Thread {
+                                try {
+                                    Desktop.getDesktop().browse(URI("https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=8XUTLRVVU2TM8&source=url"))
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }.start()
+                        }
+                    }
+                }
+                vbox(25) {
+                    alignment = Pos.TOP_CENTER
+                    label("or scan the following QR code:")
+                    imageview(internalResourceController.getAsImage(InternalResource.DONATE_QR))
+                }
+            }
+
+
         }
     }
 }

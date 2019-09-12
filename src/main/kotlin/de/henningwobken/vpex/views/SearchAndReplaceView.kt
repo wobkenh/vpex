@@ -2,7 +2,6 @@ package de.henningwobken.vpex.views
 
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleStringProperty
-import javafx.scene.control.Alert
 import javafx.scene.control.ToggleGroup
 import tornadofx.*
 
@@ -30,7 +29,7 @@ class SearchAndReplaceView : View("Search and replace") {
                 }
                 hbox(10) {
                     button("Find Next").action {
-                        findNext()
+                        //                        findNext()
                     }
                     button("Count")
                     button("Find All")
@@ -49,20 +48,20 @@ class SearchAndReplaceView : View("Search and replace") {
         }
     }
 
-    private fun findNext() {
-        val offset = mainView.codeArea.caretPosition
-        val fullText = mainView.getFullText()
-        val index = fullText.indexOf(this.findProperty.get(), offset + 1)
-        if (index >= 0) {
-            mainView.moveToIndex(index)
-            // TODO: Select searched word / Move focus
-//            Platform.runLater {
-//                mainView.codeArea.select(offset, offset + this.findProperty.get().length)
-//                mainView.codeArea.requestFocus()
-//            }
-        } else {
-            alert(Alert.AlertType.WARNING, "Ouch", "I went a bit over the edge there. There are no more results.")
-        }
-    }
+//    private fun findNext() {
+//        val offset = mainView.codeArea.caretPosition
+//        val fullText = mainView.getFullText()
+//        val index = fullText.indexOf(this.findProperty.get(), offset + 1)
+//        if (index >= 0) {
+//            mainView.moveToIndex(index)
+//            // TODO: Select searched word / Move focus
+////            Platform.runLater {
+////                mainView.codeArea.select(offset, offset + this.findProperty.get().length)
+////                mainView.codeArea.requestFocus()
+////            }
+//        } else {
+//            alert(Alert.AlertType.WARNING, "Ouch", "I went a bit over the edge there. There are no more results.")
+//        }
+//    }
 
 }
