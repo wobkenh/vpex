@@ -56,6 +56,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var pageLineCounts = IntArray(0) // Line count of each page
     private var pageStartingLineCounts = IntArray(0) // For each page the number of lines before this page
     private val pageTotalLineCount = SimpleIntegerProperty(0)
+    private var textOperationLock = false // If set to true, ignore changes in code area for line counts / dirty detection
 
     // UI
     override val root = borderpane {
@@ -159,13 +160,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
                 button("Close").action {
                     file = null
-                    codeArea.replaceText("")
+                    replaceText("")
+                    fullText = ""
+                    lineCount.bind(codeArea.paragraphs.sizeProperty())
+                    pagination.set(false)
                     isDirty.set(false)
                 }
                 hbox(10) {
                     paddingAll = 10.0
                     label("Lines:")
-                    // TODO: Calculate Lines when using pagination
                     label(lineCount.stringBinding {
                         numberFormat.format(it)
                     })
@@ -212,6 +215,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         checkForPagination()
     }
 
+    private fun replaceText(text: String) {
+        this.textOperationLock = true
+        this.codeArea.replaceText(text)
+        this.textOperationLock = false
+    }
+
     private fun checkForPagination() {
         println("Checking for Pagination")
         if (this.settingsController.getSettings().pagination) {
@@ -219,11 +228,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             // Text might still be only in codeArea
             val textLength = max(this.fullText.length, this.codeArea.text.length)
             if (textLength > this.settingsController.getSettings().paginationThreshold) {
-                pagination.set(true)
-                if (this.fullText == "") {
+                if (!pagination.get()) {
+                    pagination.set(true)
+                    println("Pagination was previously disabled. Setting up pagination")
                     val wasDirty = this.isDirty.get()
-                    println("Saving Code from CodeArea to FullText")
-                    this.fullText = this.codeArea.text
+                    if (this.fullText == "") {
+                        println("Saving Code from CodeArea to FullText")
+                        this.fullText = this.codeArea.text
+                    }
                     this.maxPage.set(calcMaxPage())
                     this.calcLinesAllPages()
                     this.moveToPage(1, true)
@@ -245,7 +257,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val wasDirty = this.isDirty.get()
         this.pagination.set(false)
         if (this.codeArea.text.length < this.fullText.length) {
-            this.codeArea.replaceText(this.fullText)
+            replaceText(this.fullText)
         }
         this.fullText = ""
         this.lineCount.bind(this.codeArea.paragraphs.sizeProperty)
@@ -264,10 +276,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         pageStartingLineCounts[0] = 0
         for (page in 2..maxPage.get()) {
             val pageIndex = page - 1
-            pageStartingLineCounts[pageIndex] = pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1]
+            // minus 1 since page break introduces a "fake" line break
+            pageStartingLineCounts[pageIndex] = pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1] - 1
         }
-        // every page break introduces a new line break, so we need to subtract that
-        this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last() - this.maxPage.get() + 1)
+        this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last())
+        println("Set max lines to ${pageTotalLineCount.get()}")
     }
 
     private fun countLinesString(string: String): Int {
@@ -293,12 +306,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun calcMaxPage(): Int {
         val max = ceil(this.fullText.length / this.settingsController.getSettings().pageSize.toDouble()).toInt()
-        println("Settings max page to $max")
+        println("Setting max page to $max")
         return max
     }
 
     private fun moveToPage(page: Int, disableSync: Boolean) {
-        println("Moving to page $page ${if (disableSync) "with" else "without"} sync")
+        println("Moving to page $page ${if (disableSync) "without" else "with"} sync")
         val pageSize = settingsController.getSettings().pageSize
         if (this.isDirty.get() && !disableSync) {
             println("Syncing CodeArea text to full text")
@@ -307,10 +320,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             this.calcLinesAllPages()
         }
         this.page.set(page)
-        this.codeArea.replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
+        replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
     }
 
-    public fun moveToPage(page: Int) {
+    private fun moveToPage(page: Int) {
         moveToPage(page, false)
     }
 
@@ -412,7 +425,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             this.fullText = xmlOutput.writer.toString()
             this.moveToPage(1)
         } else {
-            this.codeArea.replaceText(xmlOutput.writer.toString())
+            replaceText(xmlOutput.writer.toString())
         }
 
     }
@@ -464,13 +477,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (this.settingsController.getSettings().pagination) {
             this.fullText = file.readText()
             checkForPagination()
-            if (this.pagination.get()) {
-                this.maxPage.set(calcMaxPage())
-                this.calcLinesAllPages()
-                this.moveToPage(1)
-            }
         } else {
-            this.codeArea.replaceText(file.readText())
+            replaceText(file.readText())
         }
         this.isDirty.set(false)
     }
@@ -495,7 +503,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         println("Setting wrap text to " + settingsController.getSettings().wrapText)
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         codeArea.plainTextChanges().subscribe {
-            this.isDirty.set(true)
             this.charCountProperty.set(
                     if (this.pagination.get()) {
                         this.fullText.length - this.settingsController.getSettings().pageSize + this.codeArea.text.length
@@ -503,6 +510,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         this.codeArea.text.length
                     }
             )
+            if (!this.textOperationLock) {
+                // Only dirty if user changed something
+                this.isDirty.set(true)
+                if (this.pagination.get()) {
+                    val insertedLines = this.countLinesString(it.inserted) - 1
+                    val removedLines = this.countLinesString(it.removed) - 1
+                    this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
+                }
+            }
         }
         this.codeArea = codeArea
         this.codeArea.isLineHighlighterOn = true
