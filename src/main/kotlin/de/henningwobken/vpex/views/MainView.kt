@@ -1,7 +1,9 @@
 package de.henningwobken.vpex.views
 
 import de.henningwobken.vpex.Styles
+import de.henningwobken.vpex.controllers.InternalResourceController
 import de.henningwobken.vpex.controllers.SettingsController
+import de.henningwobken.vpex.model.InternalResource
 import de.henningwobken.vpex.xml.ResourceResolver
 import de.henningwobken.vpex.xml.XmlErrorHandler
 import javafx.application.Platform
@@ -17,6 +19,7 @@ import javafx.scene.input.KeyCode
 import javafx.scene.input.TransferMode
 import javafx.scene.layout.BorderPane
 import javafx.scene.layout.Priority
+import javafx.scene.layout.Region
 import javafx.scene.paint.Paint
 import javafx.stage.FileChooser
 import javafx.util.Duration
@@ -43,6 +46,7 @@ import kotlin.math.min
 
 
 class MainView : View("VPEX: View, parse and edit large XML Files") {
+    private val internalResourceController: InternalResourceController by inject()
     private val settingsController: SettingsController by inject()
     private var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
@@ -54,6 +58,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val showReplaceProperty = SimpleBooleanProperty(false)
     private val findProperty = SimpleStringProperty("")
     private val replaceProperty = SimpleStringProperty("")
+    private var lastFindStart = 0
+    private var lastFindEnd = 0
     // Pagination
     private var fullText: String = ""
     private val pagination = SimpleBooleanProperty()
@@ -571,8 +577,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 showReplaceProperty.set(false)
             }
         }
-        this.codeArea.isLineHighlighterOn = true
+//        this.codeArea.isLineHighlighterOn = true
         this.codeArea.setLineHighlighterFill(Paint.valueOf("#eee"))
+        this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS));
         // Original: LineNumberFactory.get(codeArea)
         codeArea.paragraphGraphicFactory = PaginatedLineNumberFactory(codeArea) {
             // Needs to return the starting line count of the current page
@@ -586,7 +593,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         return codeArea
     }
 
-    fun getFullText(): String {
+    private fun getFullText(): String {
         return if (this.pagination.get()) {
             // fullText might be out of sync
             if (this.isDirty.get()) {
@@ -605,12 +612,25 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val index = fullText.indexOf(this.findProperty.get(), offset + 1)
         if (index >= 0) {
             moveToIndex(index)
-            // TODO: Select searched word / Move focus
+            // TODO: Make this work with pagination...
             Platform.runLater {
-                codeArea.selectRange(codeArea.anchor, codeArea.anchor + this.findProperty.get().length)
+                val findStart = codeArea.anchor
+                val findEnd = codeArea.anchor + this.findProperty.get().length
+                codeArea.clearStyle(lastFindStart, lastFindEnd)
+                codeArea.setStyle(findStart, findEnd, listOf("searchHighlight"))
+                lastFindStart = findStart
+                lastFindEnd = findEnd
+                // TODO: Allow Select of highlighted text when pressing tab in searchfield
+                //      codeArea.selectRange(codeArea.anchor, codeArea.anchor + this.findProperty.get().length)
             }
         } else {
-            alert(Alert.AlertType.WARNING, "Ouch", "I went a bit over the edge there. There are no more results.")
+            // TODO: first enter => overlay at bottom right saying there are no more results and fading out after x seconds
+            //      second enter => start at beginning of file
+            //          no alert
+            val alert = Alert(Alert.AlertType.WARNING, "I went a bit over the edge there. There are no more results.")
+            alert.title = "End of file"
+            alert.dialogPane.minHeight = Region.USE_PREF_SIZE
+            alert.showAndWait()
         }
     }
 }

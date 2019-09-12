@@ -24,4 +24,9 @@ class InternalResourceController : Controller() {
         return content.toString()
     }
 
+    fun getAsResource(resource: InternalResource): String {
+        return (Vpex::class.java.classLoader.getResource(resource.filename)
+                ?: throw RuntimeException("Could not find internal Resource " + resource.filename)).toExternalForm()
+    }
+
 }
