@@ -38,7 +38,7 @@ class ResourceResolver(private val basePath: String) : LSResourceResolver {
     private fun chooseFile(systemId: String?): File {
         val fileChooser = FileChooser()
         fileChooser.title = "Choose Schema file $systemId"
-        fileChooser.initialDirectory = File(basePath)
+        fileChooser.initialDirectory = File(basePath).absoluteFile
         return fileChooser.showOpenDialog(FX.primaryStage) ?: throw RuntimeException("No file chosen. Abort.")
     }
 

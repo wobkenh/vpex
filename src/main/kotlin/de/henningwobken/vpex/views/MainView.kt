@@ -4,13 +4,12 @@ import de.henningwobken.vpex.Styles
 import de.henningwobken.vpex.controllers.InternalResourceController
 import de.henningwobken.vpex.controllers.SettingsController
 import de.henningwobken.vpex.model.InternalResource
+import de.henningwobken.vpex.model.SearchDirection
+import de.henningwobken.vpex.model.TextInterpreterMode
 import de.henningwobken.vpex.xml.ResourceResolver
 import de.henningwobken.vpex.xml.XmlErrorHandler
 import javafx.application.Platform
-import javafx.beans.property.BooleanProperty
-import javafx.beans.property.SimpleBooleanProperty
-import javafx.beans.property.SimpleIntegerProperty
-import javafx.beans.property.SimpleStringProperty
+import javafx.beans.property.*
 import javafx.geometry.Pos
 import javafx.scene.control.Alert
 import javafx.scene.control.Alert.AlertType.INFORMATION
@@ -32,6 +31,7 @@ import java.io.StringReader
 import java.io.StringWriter
 import java.nio.file.Files
 import java.text.NumberFormat
+import java.util.regex.Pattern
 import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
 import javax.xml.transform.OutputKeys
@@ -56,10 +56,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var lineCount = SimpleIntegerProperty(0)
     // Search and Replace
     private val showReplaceProperty = SimpleBooleanProperty(false)
+    private val showFindProperty = SimpleBooleanProperty(false)
     private val findProperty = SimpleStringProperty("")
     private val replaceProperty = SimpleStringProperty("")
     private var lastFindStart = 0
     private var lastFindEnd = 0
+    private val searchDirection = SimpleObjectProperty<Any>()
+    private val textInterpreterMode = SimpleObjectProperty<Any>()
+    private val regexPatternMap = mutableMapOf<String, Pattern>()
+
     // Pagination
     private var fullText: String = ""
     private val pagination = SimpleBooleanProperty()
@@ -69,6 +74,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var pageStartingLineCounts = IntArray(0) // For each page the number of lines before this page
     private val pageTotalLineCount = SimpleIntegerProperty(0)
     private var textOperationLock = false // If set to true, ignore changes in code area for line counts / dirty detection
+    private var dirtySinceLastSync = false
 
     // UI
     override val root: BorderPane = borderpane {
@@ -90,8 +96,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         moveTo()
                     }
                     item("Search", "Shortcut+F").action {
-                        //                        find<SearchAndReplaceView>().openModal(StageStyle.UTILITY)
-                        showReplaceProperty.set(true)
+                        showReplaceProperty.set(false)
+                        showFindProperty.set(true)
                     }
                 }
                 menu("Edit") {
@@ -99,8 +105,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         prettyPrint()
                     }
                     item("Replace", "Shortcut+R").action {
-                        //                        find<SearchAndReplaceView>().openModal(StageStyle.UTILITY, Modality.WINDOW_MODAL)
                         showReplaceProperty.set(true)
+                        showFindProperty.set(false)
                     }
                 }
                 menu("Validate") {
@@ -123,25 +129,115 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
         center = vbox {
             hbox(20) {
-                this.removeWhen(showReplaceProperty.not())
+                this.removeWhen(showReplaceProperty.not().and(showFindProperty.not()))
                 form {
-                    fieldset {
-                        field("Find") {
-                            textfield(findProperty) {
-                                val textfield = this
-                                showReplaceProperty.onChange {
-                                    if (it) {
-                                        textfield.requestFocus()
+                    hbox(20) {
+                        fieldset {
+                            field("Find") {
+                                textfield(findProperty) {
+                                    val textfield = this
+                                    showReplaceProperty.onChange {
+                                        if (it) {
+                                            textfield.requestFocus()
+                                        }
+                                    }
+                                    showFindProperty.onChange {
+                                        if (it) {
+                                            textfield.requestFocus()
+                                        }
+                                    }
+                                    this.setOnKeyPressed {
+                                        // Select the find if there was a find and the user did not change his position in the code area
+                                        if (it.code == KeyCode.TAB && lastFindEnd > 0 && lastFindStart == codeArea.anchor) {
+                                            codeArea.requestFocus()
+                                            codeArea.selectRange(codeArea.anchor, codeArea.anchor + findProperty.get().length)
+                                            it.consume()
+                                        } else if (it.code == KeyCode.ESCAPE) {
+                                            closeSearchAndReplace()
+                                        }
+                                    }
+                                    this.setOnAction {
+                                        findNext()
                                     }
                                 }
-                                this.setOnAction {
-                                    findNext()
+
+                            }
+                            field("Replace") {
+                                removeWhen(showReplaceProperty.not())
+                                textfield(replaceProperty)
+                            }
+                        }
+                        fieldset {
+                            field {
+                                togglegroup(searchDirection) {
+                                    val toggleGroup = this
+                                    vbox(10) {
+                                        radiobutton("Up", toggleGroup, SearchDirection.UP)
+                                        radiobutton("Down", toggleGroup, SearchDirection.DOWN) {
+                                            this.selectedProperty().set(true)
+                                        }
+                                    }
                                 }
                             }
-
                         }
-                        field("Replace") {
-                            textfield(replaceProperty)
+                        fieldset {
+                            field {
+                                togglegroup(textInterpreterMode) {
+                                    val toggleGroup = this
+                                    vbox(10) {
+                                        radiobutton("Normal", toggleGroup, TextInterpreterMode.NORMAL) {
+                                            this.selectedProperty().set(true)
+                                        }
+                                        radiobutton("Extended", toggleGroup, TextInterpreterMode.EXTENDED)
+                                        radiobutton("Regex", toggleGroup, TextInterpreterMode.REGEX)
+                                    }
+                                }
+                            }
+                        }
+                        fieldset {
+                            field {
+                                checkbox("ignore case") {
+                                    // TODO: Binden
+                                }
+                            }
+                        }
+                        fieldset {
+                            hbox(5) {
+                                vbox(5) {
+                                    button("Find next") {
+                                        fillHorizontal(this)
+                                    }.action {
+                                        findNext()
+                                    }
+                                    button("Find all") {
+                                        fillHorizontal(this)
+                                    }.action {
+                                        // TODO: Find and highlight all
+                                    }
+                                    button("List all") {
+                                        fillHorizontal(this)
+                                    }.action {
+                                        // TODO: open popup with code snippets of matches
+                                    }
+                                }
+                                vbox(5) {
+                                    button("Count") {
+                                        fillHorizontal(this)
+                                    }.action {
+                                        // TODO: open popup with code snippets of matches
+                                    }
+                                    button("Replace next") {
+                                        fillHorizontal(this)
+                                    }.action {
+                                        // TODO: replace next
+                                    }
+                                    button("Replace all") {
+                                        fillHorizontal(this)
+                                    }.action {
+                                        // TODO: Replace all
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -150,7 +246,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     maxWidth = Int.MAX_VALUE.toDouble()
                 }
                 button("X").action {
-                    showReplaceProperty.set(false)
+                    closeSearchAndReplace()
                 }
             }
             add(getVirtualScrollPane(getRichTextArea()))
@@ -173,8 +269,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     })
                 }
                 label("") {
-                    hgrow = Priority.ALWAYS
-                    maxWidth = Int.MAX_VALUE.toDouble()
+                    fillHorizontal(this)
                 }
                 hbox(10) {
                     alignment = Pos.CENTER
@@ -253,6 +348,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             event.consume()
         }
 
+    }
+
+    private fun fillHorizontal(region: Region) {
+        region.hgrow = Priority.ALWAYS
+        region.maxWidth = Int.MAX_VALUE.toDouble()
+    }
+
+    private fun closeSearchAndReplace() {
+        if (lastFindEnd > 0) {
+            codeArea.clearStyle(lastFindStart, lastFindEnd)
+        }
+        showReplaceProperty.set(false)
+        showFindProperty.set(false)
     }
 
     override fun onDock() {
@@ -361,11 +469,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun moveToPage(page: Int, disableSync: Boolean) {
         println("Moving to page $page ${if (disableSync) "without" else "with"} sync")
         val pageSize = settingsController.getSettings().pageSize
-        if (this.isDirty.get() && !disableSync) {
+        lastFindEnd = 0
+        lastFindStart = 0
+        if (dirtySinceLastSync && !disableSync) {
             println("Syncing CodeArea text to full text")
             this.fullText = this.fullText.replaceRange((this.page.get() - 1) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
             this.maxPage.set(calcMaxPage())
             this.calcLinesAllPages()
+            this.dirtySinceLastSync = false
         }
         this.page.set(page)
         replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
@@ -418,10 +529,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun moveToIndex(index: Int) {
         if (pagination.get()) {
-            moveToLineColumn(0, (this.page.get() * this.settingsController.getSettings().pageSize) - index)
+            val page = getPageOfIndex(index)
+            if (page != this.page.get()) {
+                moveToPage(page)
+            }
+            this.moveToLineColumn(0, index - ((this.page.get() - 1) * this.settingsController.getSettings().pageSize))
         } else {
             moveToLineColumn(0, index)
         }
+    }
+
+    private fun getPageOfIndex(index: Int): Int {
+        return ceil(index / this.settingsController.getSettings().pageSize.toDouble()).toInt()
     }
 
     /**
@@ -495,7 +614,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         println("Saving as")
         val fileChooser = FileChooser()
         fileChooser.title = "Save as"
-        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
+        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath).absoluteFile
         val file = fileChooser.showSaveDialog(FX.primaryStage)
         if (file != null) {
             this.file = file
@@ -511,7 +630,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         println("Opening new file")
         val fileChooser = FileChooser()
         fileChooser.title = "Open new File"
-        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
+        println(File(settingsController.getSettings().openerBasePath).absolutePath)
+        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath).absoluteFile
         val file = fileChooser.showOpenDialog(FX.primaryStage)
         if (file != null && file.exists()) {
             openFile(file)
@@ -564,10 +684,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             if (!this.textOperationLock) {
                 // Only dirty if user changed something
                 this.isDirty.set(true)
+                this.dirtySinceLastSync = true
                 if (this.pagination.get()) {
                     val insertedLines = this.countLinesString(it.inserted) - 1
                     val removedLines = this.countLinesString(it.removed) - 1
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
+                }
+            }
+            if (this.lastFindEnd > 0) {
+                // Edit invalidated search result => Remove Highlight
+                if (this.codeArea.text.substring(this.lastFindStart, this.lastFindEnd) != this.findProperty.get()) {
+                    println("Removed Highlighting because search result was invalidated through editing")
+                    this.codeArea.clearStyle(0, codeArea.length - 1)
                 }
             }
         }
@@ -575,9 +703,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.codeArea.setOnKeyPressed {
             if (it.code == KeyCode.ESCAPE) {
                 showReplaceProperty.set(false)
+                showFindProperty.set(false)
             }
         }
-//        this.codeArea.isLineHighlighterOn = true
+        this.codeArea.isLineHighlighterOn = true
         this.codeArea.setLineHighlighterFill(Paint.valueOf("#eee"))
         this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS));
         // Original: LineNumberFactory.get(codeArea)
@@ -607,26 +736,82 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     // Search and replace functions
 
     private fun findNext() {
-        val offset = codeArea.caretPosition
+        // Find out where to start searching
+        val offset = if (pagination.get()) {
+            codeArea.caretPosition + (this.page.get() - 1) * this.settingsController.getSettings().pageSize
+        } else {
+            codeArea.caretPosition
+        }
+
+        // Find text to search in and text to search for
         val fullText = getFullText()
-        val index = fullText.indexOf(this.findProperty.get(), offset + 1)
+        val searchText = if (this.textInterpreterMode.get() as TextInterpreterMode == TextInterpreterMode.EXTENDED) {
+            this.findProperty.get().replace("\\n", "\n")
+                    .replace("\\r", "\r")
+                    .replace("\\t", "\t")
+        } else {
+            this.findProperty.get()
+        }
+
+        // Search
+        var regexMatchLength = -1
+        val index = if (this.searchDirection.get() as SearchDirection == SearchDirection.UP) {
+            // UP
+            if (this.textInterpreterMode.get() as TextInterpreterMode == TextInterpreterMode.REGEX) {
+                val pattern = regexPatternMap.getOrPut(searchText) { Pattern.compile(searchText) }
+                // End index of substring is exclusive, so no -1
+                val matcher = pattern.matcher(fullText)
+                var regexStartIndex = -1
+                // TODO: This goes through all the matches. This is inefficient.
+                while (true) {
+                    try {
+                        val found = matcher.find()
+                        if (!found || matcher.end() > offset) {
+                            break
+                        }
+                        regexMatchLength = matcher.end() - matcher.start()
+                        regexStartIndex = matcher.start()
+                    } catch (e: Exception) {
+                        break
+                    }
+                }
+                regexStartIndex
+            } else {
+                // - 1 to exclude current search result
+                fullText.lastIndexOf(searchText, offset - 1)
+            }
+        } else {
+            // DOWN
+            if (this.textInterpreterMode.get() as TextInterpreterMode == TextInterpreterMode.REGEX) {
+                val pattern = regexPatternMap.getOrPut(searchText) { Pattern.compile(searchText) }
+                val matcher = pattern.matcher(fullText)
+                if (matcher.find(offset + 1)) {
+                    regexMatchLength = matcher.end() - matcher.start()
+                    println("Found at ${matcher.start()} till ${matcher.end()} with length $regexMatchLength")
+                    matcher.start()
+                } else -1
+            } else {
+                // + 1 to exclude current search result
+                fullText.indexOf(searchText, offset + 1)
+            }
+        }
+
+        // Move to search result
         if (index >= 0) {
             moveToIndex(index)
-            // TODO: Make this work with pagination...
             Platform.runLater {
                 val findStart = codeArea.anchor
-                val findEnd = codeArea.anchor + this.findProperty.get().length
+                val findLength = if (regexMatchLength < 0) this.findProperty.get().length else regexMatchLength
+                val findEnd = codeArea.anchor + findLength
                 codeArea.clearStyle(lastFindStart, lastFindEnd)
                 codeArea.setStyle(findStart, findEnd, listOf("searchHighlight"))
                 lastFindStart = findStart
                 lastFindEnd = findEnd
-                // TODO: Allow Select of highlighted text when pressing tab in searchfield
-                //      codeArea.selectRange(codeArea.anchor, codeArea.anchor + this.findProperty.get().length)
             }
         } else {
             // TODO: first enter => overlay at bottom right saying there are no more results and fading out after x seconds
             //      second enter => start at beginning of file
-            //          no alert
+            //          no alert, vlt. Info unten in Statusbar
             val alert = Alert(Alert.AlertType.WARNING, "I went a bit over the edge there. There are no more results.")
             alert.title = "End of file"
             alert.dialogPane.minHeight = Region.USE_PREF_SIZE

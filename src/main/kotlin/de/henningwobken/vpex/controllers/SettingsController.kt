@@ -1,6 +1,8 @@
 package de.henningwobken.vpex.controllers
 
 import de.henningwobken.vpex.model.Settings
+import javafx.scene.control.Alert
+import javafx.scene.layout.Region
 import tornadofx.*
 import java.io.File
 import java.nio.file.Files
@@ -34,13 +36,13 @@ class SettingsController : Controller() {
     }
 
     private fun loadSettings(): Settings {
-        return if (!configFile.exists()) {
+        val settings = if (!configFile.exists()) {
             if (!configFile.parentFile.exists()) {
                 configFile.parentFile.mkdir()
             }
             Files.write(configFile.toPath(), listOf(
-                    "openerBasePath=",
-                    "schemaBasePath=",
+                    "openerBasePath=./",
+                    "schemaBasePath=./",
                     "wrapText=true",
                     "prettyPrintIndent=4",
                     "locale=en",
@@ -76,9 +78,37 @@ class SettingsController : Controller() {
                 println("Error while parsing settings.")
                 e.printStackTrace()
                 println("Deleting old config file.")
+                val errorMessage = "There was an error loading the config file: " +
+                        e.message +
+                        "\nI deleted the old config file and replaced it with a new one with default settings."
+                showAlert(Alert.AlertType.ERROR, "Error loading config", errorMessage)
                 configFile.delete()
                 loadSettings()
             }
         }
+        validateSettings(settings)
+        return settings
+    }
+
+
+    private fun validateSettings(settings: Settings) {
+        val openerBaseFile = File(settings.openerBasePath).absoluteFile
+        if (!openerBaseFile.exists() || !openerBaseFile.isDirectory) {
+            val errorMessage = "Opener base path ${openerBaseFile.absolutePath} is not a directory or does not exist. Please replace it in the settings."
+            showAlert(Alert.AlertType.ERROR, "Directory does not exist", errorMessage)
+        }
+        val schemaBaseFile = File(settings.schemaBasePath).absoluteFile
+        if (!schemaBaseFile.exists() || !schemaBaseFile.isDirectory) {
+            val errorMessage = "Schema base path ${schemaBaseFile.absolutePath} is not a directory or does not exist. Please replace it in the settings."
+            showAlert(Alert.AlertType.ERROR, "Directory does not exist", errorMessage)
+        }
+    }
+
+    private fun showAlert(alertType: Alert.AlertType, title: String, message: String) {
+        println(message)
+        val alert = Alert(alertType, message)
+        alert.title = title
+        alert.dialogPane.minHeight = Region.USE_PREF_SIZE
+        alert.showAndWait()
     }
 }
