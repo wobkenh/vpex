@@ -19,7 +19,6 @@ import javafx.scene.input.TransferMode
 import javafx.scene.layout.BorderPane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
-import javafx.scene.paint.Paint
 import javafx.stage.FileChooser
 import javafx.util.Duration
 import org.fxmisc.flowless.VirtualizedScrollPane
@@ -706,8 +705,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 showFindProperty.set(false)
             }
         }
-        this.codeArea.isLineHighlighterOn = true
-        this.codeArea.setLineHighlighterFill(Paint.valueOf("#eee"))
         this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS));
         // Original: LineNumberFactory.get(codeArea)
         codeArea.paragraphGraphicFactory = PaginatedLineNumberFactory(codeArea) {
