@@ -60,6 +60,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val replaceProperty = SimpleStringProperty("")
     private var lastFindStart = 0
     private var lastFindEnd = 0
+    private val hasFindProperty = SimpleBooleanProperty(false)
     private val searchDirection = SimpleObjectProperty<Any>()
     private val textInterpreterMode = SimpleObjectProperty<Any>()
     private val regexPatternMap = mutableMapOf<String, Pattern>()
@@ -147,7 +148,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                     }
                                     this.setOnKeyPressed {
                                         // Select the find if there was a find and the user did not change his position in the code area
-                                        if (it.code == KeyCode.TAB && lastFindEnd > 0 && lastFindStart == codeArea.anchor) {
+                                        if (it.code == KeyCode.TAB && hasFindProperty.get() && lastFindStart == codeArea.anchor) {
                                             codeArea.requestFocus()
                                             codeArea.selectRange(codeArea.anchor, codeArea.anchor + findProperty.get().length)
                                             it.consume()
@@ -220,20 +221,22 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                     }
                                 }
                                 vbox(5) {
+                                    button("Replace this") {
+                                        enableWhen { hasFindProperty.and(showReplaceProperty) }
+                                        fillHorizontal(this)
+                                    }.action {
+                                        codeArea.replaceText(lastFindStart, lastFindEnd, replaceProperty.get())
+                                    }
+                                    button("Replace all") {
+                                        enableWhen { showReplaceProperty }
+                                        fillHorizontal(this)
+                                    }.action {
+                                        // TODO: Replace all
+                                    }
                                     button("Count") {
                                         fillHorizontal(this)
                                     }.action {
                                         // TODO: open popup with code snippets of matches
-                                    }
-                                    button("Replace next") {
-                                        fillHorizontal(this)
-                                    }.action {
-                                        // TODO: replace next
-                                    }
-                                    button("Replace all") {
-                                        fillHorizontal(this)
-                                    }.action {
-                                        // TODO: Replace all
                                     }
                                 }
                             }
@@ -355,11 +358,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun closeSearchAndReplace() {
-        if (lastFindEnd > 0) {
+        if (hasFindProperty.get()) {
             codeArea.clearStyle(lastFindStart, lastFindEnd)
         }
         showReplaceProperty.set(false)
         showFindProperty.set(false)
+        hasFindProperty.set(false)
+        lastFindStart = 0
+        lastFindEnd = 0
     }
 
     override fun onDock() {
@@ -470,6 +476,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val pageSize = settingsController.getSettings().pageSize
         lastFindEnd = 0
         lastFindStart = 0
+        hasFindProperty.set(false)
         if (dirtySinceLastSync && !disableSync) {
             println("Syncing CodeArea text to full text")
             this.fullText = this.fullText.replaceRange((this.page.get() - 1) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
@@ -690,19 +697,21 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
                 }
             }
-            if (this.lastFindEnd > 0) {
+            if (this.hasFindProperty.get()) {
                 // Edit invalidated search result => Remove Highlight
                 if (this.codeArea.text.substring(this.lastFindStart, this.lastFindEnd) != this.findProperty.get()) {
                     println("Removed Highlighting because search result was invalidated through editing")
                     this.codeArea.clearStyle(0, codeArea.length - 1)
+                    this.hasFindProperty.set(false)
+                    this.lastFindStart = 0
+                    this.lastFindEnd = 0
                 }
             }
         }
         this.codeArea = codeArea
         this.codeArea.setOnKeyPressed {
             if (it.code == KeyCode.ESCAPE) {
-                showReplaceProperty.set(false)
-                showFindProperty.set(false)
+                closeSearchAndReplace()
             }
         }
         this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS));
@@ -804,6 +813,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 codeArea.setStyle(findStart, findEnd, listOf("searchHighlight"))
                 lastFindStart = findStart
                 lastFindEnd = findEnd
+                this.hasFindProperty.set(true)
             }
         } else {
             // TODO: first enter => overlay at bottom right saying there are no more results and fading out after x seconds
