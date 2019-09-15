@@ -3,6 +3,7 @@ package de.henningwobken.vpex.views
 import de.henningwobken.vpex.Styles
 import de.henningwobken.vpex.controllers.InternalResourceController
 import de.henningwobken.vpex.controllers.SettingsController
+import de.henningwobken.vpex.controllers.StringUtils
 import de.henningwobken.vpex.model.InternalResource
 import de.henningwobken.vpex.model.SearchDirection
 import de.henningwobken.vpex.model.TextInterpreterMode
@@ -47,6 +48,8 @@ import kotlin.math.min
 class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val internalResourceController: InternalResourceController by inject()
     private val settingsController: SettingsController by inject()
+    private val stringUtils: StringUtils by inject()
+
     private var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
     private val charCountProperty = SimpleIntegerProperty(0)
@@ -431,7 +434,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val pageSize = this.settingsController.getSettings().pageSize
         for (page in 1..maxPage.get()) {
             val pageIndex = page - 1
-            pageLineCounts[pageIndex] = countLinesString(this.fullText.substring(pageIndex * pageSize, min(this.fullText.length, page * pageSize)))
+            pageLineCounts[pageIndex] = stringUtils.countLinesInString(this.fullText.substring(pageIndex * pageSize, min(this.fullText.length, page * pageSize)))
         }
         // for page 1 there are no previous pages
         pageStartingLineCounts[0] = 0
@@ -442,27 +445,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
         this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last())
         println("Set max lines to ${pageTotalLineCount.get()}")
-    }
-
-    private fun countLinesString(string: String): Int {
-        var lines = 1
-        var carriageReturnFlag = false
-        for (index in string.indices) {
-            val char = string[index]
-            if (char == '\n') {
-                if (carriageReturnFlag) {
-                    carriageReturnFlag = false
-                } else {
-                    lines++
-                }
-            } else if (char == '\r') {
-                carriageReturnFlag = true
-                lines++
-            } else {
-                carriageReturnFlag = false
-            }
-        }
-        return lines
     }
 
     private fun calcMaxPage(): Int {
@@ -692,8 +674,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 this.isDirty.set(true)
                 this.dirtySinceLastSync = true
                 if (this.pagination.get()) {
-                    val insertedLines = this.countLinesString(it.inserted) - 1
-                    val removedLines = this.countLinesString(it.removed) - 1
+                    val insertedLines = this.stringUtils.countLinesInString(it.inserted) - 1
+                    val removedLines = this.stringUtils.countLinesInString(it.removed) - 1
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
                 }
             }
@@ -701,10 +683,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 // Edit invalidated search result => Remove Highlight
                 if (this.codeArea.text.substring(this.lastFindStart, this.lastFindEnd) != this.findProperty.get()) {
                     println("Removed Highlighting because search result was invalidated through editing")
-                    this.codeArea.clearStyle(0, codeArea.length - 1)
-                    this.hasFindProperty.set(false)
-                    this.lastFindStart = 0
-                    this.lastFindEnd = 0
+                    removeFindHighlighting()
                 }
             }
         }
@@ -740,6 +719,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
 
     // Search and replace functions
+
+    private fun removeFindHighlighting() {
+        this.codeArea.clearStyle(0, codeArea.length - 1)
+        this.hasFindProperty.set(false)
+        this.lastFindStart = 0
+        this.lastFindEnd = 0
+    }
+
+    private fun findAll() {
+        this.removeFindHighlighting()
+
+    }
 
     private fun findNext() {
         // Find out where to start searching
