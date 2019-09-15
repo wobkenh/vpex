@@ -67,6 +67,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val searchDirection = SimpleObjectProperty<Any>()
     private val textInterpreterMode = SimpleObjectProperty<Any>()
     private val regexPatternMap = mutableMapOf<String, Pattern>()
+    private val ignoreCaseProperty = SimpleBooleanProperty(false)
 
     // Pagination
     private var fullText: String = ""
@@ -199,9 +200,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         }
                         fieldset {
                             field {
-                                checkbox("ignore case") {
-                                    // TODO: Binden
-                                }
+                                checkbox("ignore case", ignoreCaseProperty)
                             }
                         }
                         fieldset {
@@ -729,7 +728,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun findAll() {
         this.removeFindHighlighting()
-
+        // TODO Find all
     }
 
     private fun findNext() {
@@ -749,13 +748,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         } else {
             this.findProperty.get()
         }
+        val ignoreCase = ignoreCaseProperty.get()
+        val interpreterMode = this.textInterpreterMode.get() as TextInterpreterMode
 
         // Search
         var regexMatchLength = -1
         val index = if (this.searchDirection.get() as SearchDirection == SearchDirection.UP) {
             // UP
-            if (this.textInterpreterMode.get() as TextInterpreterMode == TextInterpreterMode.REGEX) {
-                val pattern = regexPatternMap.getOrPut(searchText) { Pattern.compile(searchText) }
+            if (interpreterMode == TextInterpreterMode.REGEX) {
+                val patternString = if (ignoreCase) "(?i)$searchText" else searchText
+                val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
                 // End index of substring is exclusive, so no -1
                 val matcher = pattern.matcher(fullText)
                 var regexStartIndex = -1
@@ -775,12 +777,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 regexStartIndex
             } else {
                 // - 1 to exclude current search result
-                fullText.lastIndexOf(searchText, offset - 1)
+                fullText.lastIndexOf(searchText, offset - 1, ignoreCase)
             }
         } else {
             // DOWN
-            if (this.textInterpreterMode.get() as TextInterpreterMode == TextInterpreterMode.REGEX) {
-                val pattern = regexPatternMap.getOrPut(searchText) { Pattern.compile(searchText) }
+            if (interpreterMode == TextInterpreterMode.REGEX) {
+                val patternString = if (ignoreCase) "(?i)$searchText" else searchText
+                val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
                 val matcher = pattern.matcher(fullText)
                 if (matcher.find(offset + 1)) {
                     regexMatchLength = matcher.end() - matcher.start()
@@ -789,7 +792,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 } else -1
             } else {
                 // + 1 to exclude current search result
-                fullText.indexOf(searchText, offset + 1)
+                fullText.indexOf(searchText, offset + 1, ignoreCase)
             }
         }
 
