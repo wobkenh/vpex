@@ -7,6 +7,7 @@ import de.henningwobken.vpex.controllers.StringUtils
 import de.henningwobken.vpex.model.InternalResource
 import de.henningwobken.vpex.model.SearchDirection
 import de.henningwobken.vpex.model.TextInterpreterMode
+import de.henningwobken.vpex.model.XmlCharState
 import de.henningwobken.vpex.xml.ResourceResolver
 import de.henningwobken.vpex.xml.XmlErrorHandler
 import javafx.application.Platform
@@ -14,6 +15,7 @@ import javafx.beans.property.*
 import javafx.geometry.Pos
 import javafx.scene.control.Alert
 import javafx.scene.control.Alert.AlertType.INFORMATION
+import javafx.scene.control.ButtonType
 import javafx.scene.control.TextInputDialog
 import javafx.scene.input.KeyCode
 import javafx.scene.input.TransferMode
@@ -107,6 +109,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 menu("Edit") {
                     item("Pretty print", "Shortcut+Shift+F").action {
                         prettyPrint()
+                    }
+                    item("Ugly print", "Shortcut+Alt+Shift+F").action {
+                        confirm("Ugly print is experimental", "Please check the result after using this.", ButtonType.OK, ButtonType.CANCEL, actionFn = {
+                            uglyPrint()
+                        })
                     }
                     item("Replace", "Shortcut+R").action {
                         showReplaceProperty.set(true)
@@ -581,7 +588,73 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         } else {
             replaceText(xmlOutput.writer.toString())
         }
+    }
 
+    private fun uglyPrint() {
+        // TODO: CDATA
+        // Trim each line
+        val fulltext = this.getFullText()
+        val stringBuilder = StringBuilder()
+        var dataText = ""
+        var state: XmlCharState = XmlCharState.BETWEEN
+        for (index in fulltext.indices) {
+            val char = fulltext[index]
+            when (state) {
+                XmlCharState.BETWEEN -> {
+                    // By only appending '<', we effectively remove everything else between a closing and an opening tag
+                    if (char == '<') {
+                        stringBuilder.append(char)
+                        state = when (fulltext[index + 1]) {
+                            '?' -> XmlCharState.XML_TAG
+                            '/' -> XmlCharState.CLOSING_TAG
+                            else -> XmlCharState.OPENING_TAG
+                        }
+                    }
+                }
+                XmlCharState.OPENING_TAG -> {
+                    stringBuilder.append(char)
+                    if (char == '>') {
+                        state = XmlCharState.DATA
+                    }
+                }
+                XmlCharState.CLOSING_TAG -> {
+                    stringBuilder.append(char)
+                    if (char == '>') {
+                        state = XmlCharState.BETWEEN
+                    }
+                }
+                XmlCharState.DATA -> {
+                    // After an opening tag, there might be either data or another tag.
+                    // If it is another tag, we need to remove it
+                    // If it is data, we need to keep it
+                    // Therefore, build a tmp string as long as you are in data and add when you know what you are
+                    dataText += char
+                    if (char == '<') {
+                        state = if (fulltext[index + 1] == '/') {
+                            // This was really data
+                            stringBuilder.append(dataText)
+                            XmlCharState.CLOSING_TAG
+                        } else {
+                            stringBuilder.append("<")
+                            XmlCharState.OPENING_TAG
+                        }
+                        dataText = ""
+                    }
+                }
+                XmlCharState.XML_TAG -> {
+                    stringBuilder.append(char)
+                    if (char == '>') {
+                        state = XmlCharState.BETWEEN
+                    }
+                }
+            }
+        }
+        if (pagination.get()) {
+            this.fullText = stringBuilder.toString()
+            this.moveToPage(1)
+        } else {
+            replaceText(stringBuilder.toString())
+        }
     }
 
     private fun saveFile() {
