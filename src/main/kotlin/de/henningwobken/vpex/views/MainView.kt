@@ -65,6 +65,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val replaceProperty = SimpleStringProperty("")
     private var lastFindStart = 0
     private var lastFindEnd = 0
+    private val allFinds = mutableListOf<Pair<Int, Int>>()
     private val hasFindProperty = SimpleBooleanProperty(false)
     private val searchDirection = SimpleObjectProperty<Any>()
     private val textInterpreterMode = SimpleObjectProperty<Any>()
@@ -221,6 +222,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                     button("Find all") {
                                         fillHorizontal(this)
                                     }.action {
+                                        searchAll()
                                         // TODO: Find and highlight all
                                     }
                                     button("List all") {
@@ -367,14 +369,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun closeSearchAndReplace() {
-        if (hasFindProperty.get()) {
-            codeArea.clearStyle(lastFindStart, lastFindEnd)
-        }
+        this.removeFindHighlighting()
         showReplaceProperty.set(false)
         showFindProperty.set(false)
-        hasFindProperty.set(false)
-        lastFindStart = 0
-        lastFindEnd = 0
     }
 
     override fun onDock() {
@@ -799,8 +796,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.lastFindEnd = 0
     }
 
-    private fun findAll() {
+    private fun searchAll(doHighlighting: Boolean = false) {
         this.removeFindHighlighting()
+        val fullText = getFullText()
+        val searchText = getSearchText()
+        val ignoreCase = ignoreCaseProperty.get()
+        val interpreterMode = this.textInterpreterMode.get() as TextInterpreterMode
         // TODO Find all
     }
 
@@ -814,13 +815,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
         // Find text to search in and text to search for
         val fullText = getFullText()
-        val searchText = if (this.textInterpreterMode.get() as TextInterpreterMode == TextInterpreterMode.EXTENDED) {
-            this.findProperty.get().replace("\\n", "\n")
-                    .replace("\\r", "\r")
-                    .replace("\\t", "\t")
-        } else {
-            this.findProperty.get()
-        }
+        val searchText = getSearchText()
         val ignoreCase = ignoreCaseProperty.get()
         val interpreterMode = this.textInterpreterMode.get() as TextInterpreterMode
 
@@ -890,6 +885,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             alert.title = "End of file"
             alert.dialogPane.minHeight = Region.USE_PREF_SIZE
             alert.showAndWait()
+        }
+    }
+
+    private fun getSearchText(): String {
+        return if (textInterpreterMode.get() as TextInterpreterMode == TextInterpreterMode.EXTENDED) {
+            findProperty.get().replace("\\n", "\n")
+                    .replace("\\r", "\r")
+                    .replace("\\t", "\t")
+        } else {
+            findProperty.get()
         }
     }
 }
