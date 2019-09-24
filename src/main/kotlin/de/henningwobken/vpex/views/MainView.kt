@@ -59,13 +59,17 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var file: File? = null
     private var lineCount = SimpleIntegerProperty(0)
     // Search and Replace
+
+    private data class Find(val start: Int, val end: Int)
+
     private val showReplaceProperty = SimpleBooleanProperty(false)
     private val showFindProperty = SimpleBooleanProperty(false)
     private val findProperty = SimpleStringProperty("")
     private val replaceProperty = SimpleStringProperty("")
     private var lastFindStart = 0
     private var lastFindEnd = 0
-    private val allFinds = mutableListOf<Pair<Int, Int>>()
+    private val allFinds = mutableListOf<Find>()
+    private val allFindsSize = SimpleIntegerProperty(-1)
     private val hasFindProperty = SimpleBooleanProperty(false)
     private val searchDirection = SimpleObjectProperty<Any>()
     private val textInterpreterMode = SimpleObjectProperty<Any>()
@@ -223,7 +227,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         fillHorizontal(this)
                                     }.action {
                                         searchAll()
-                                        // TODO: Find and highlight all
+                                        highlightAll()
                                     }
                                     button("List all") {
                                         fillHorizontal(this)
@@ -242,15 +246,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         enableWhen { showReplaceProperty }
                                         fillHorizontal(this)
                                     }.action {
-                                        // TODO: Replace all
+                                        replaceAll()
                                     }
                                     button("Count") {
                                         fillHorizontal(this)
                                     }.action {
-                                        // TODO: open popup with code snippets of matches
+                                        searchAll()
                                     }
                                 }
                             }
+                        }
+                        fieldset {
+                            visibleWhen(allFindsSize.greaterThan(-1))
+                            label(allFindsSize.stringBinding { "${it!!} matches" })
                         }
                     }
                 }
@@ -401,11 +409,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     val wasDirty = this.isDirty.get()
                     if (this.fullText == "") {
                         println("Saving Code from CodeArea to FullText")
+                        this.dirtySinceLastSync = true
                         this.fullText = this.codeArea.text
                     }
-                    this.maxPage.set(calcMaxPage())
-                    this.calcLinesAllPages()
-                    this.moveToPage(1, true)
+                    this.moveToPage(1, SyncDirection.TO_CODEAREA)
                     this.lineCount.bind(this.pageTotalLineCount)
                     this.isDirty.set(wasDirty)
                 }
@@ -456,15 +463,34 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         return max
     }
 
-    private fun moveToPage(page: Int, disableSync: Boolean) {
-        println("Moving to page $page ${if (disableSync) "without" else "with"} sync")
+    private enum class SyncDirection {
+        TO_FULLTEXT, TO_CODEAREA
+    }
+
+    /**
+     * Replaces the text in the codearea with the text of the given page.
+     * This code automatically recalculates line numbers/counts if the text has changed.
+     *
+     * @param page page number (not index)
+     * @param syncDirection Code changes are not instantly reflected in the corresponding full text string.
+     *      In such cases, a sync might be necessary in either direction:
+     *      a) TO_FULLTEXT: from codearea to fulltext (e.g. user made a change in the editor)
+     *      or
+     *      b) TO_CODEAREA: from fulltext to codearea (e.g. fulltext was replaced due to formatting action)
+     */
+    private fun moveToPage(page: Int, syncDirection: SyncDirection) {
+        println("Moving to page $page with sync direction $syncDirection")
         val pageSize = settingsController.getSettings().pageSize
         lastFindEnd = 0
         lastFindStart = 0
         hasFindProperty.set(false)
-        if (dirtySinceLastSync && !disableSync) {
-            println("Syncing CodeArea text to full text")
-            this.fullText = this.fullText.replaceRange((this.page.get() - 1) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
+        if (dirtySinceLastSync) {
+            if (syncDirection == SyncDirection.TO_FULLTEXT) {
+                println("Syncing CodeArea text to full text")
+                this.fullText = this.fullText.replaceRange((this.page.get() - 1) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
+            } else {
+                println("Syncing full text to CodeArea")
+            }
             this.maxPage.set(calcMaxPage())
             this.calcLinesAllPages()
             this.dirtySinceLastSync = false
@@ -474,7 +500,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun moveToPage(page: Int) {
-        moveToPage(page, false)
+        moveToPage(page, SyncDirection.TO_FULLTEXT)
     }
 
     /**
@@ -580,10 +606,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val xmlInput = StreamSource(StringReader(getFullText()))
         transformer.transform(xmlInput, xmlOutput)
         if (pagination.get()) {
-            this.fullText = xmlOutput.writer.toString()
-            this.moveToPage(1)
+            changeFullText(xmlOutput.writer.toString())
         } else {
-            replaceText(xmlOutput.writer.toString())
+            this.codeArea.replaceText(xmlOutput.writer.toString())
         }
     }
 
@@ -647,11 +672,17 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
         }
         if (pagination.get()) {
-            this.fullText = stringBuilder.toString()
-            this.moveToPage(1)
+            changeFullText(stringBuilder.toString())
         } else {
-            replaceText(stringBuilder.toString())
+            this.codeArea.replaceText(stringBuilder.toString())
         }
+    }
+
+    private fun changeFullText(fullText: String) {
+        this.dirtySinceLastSync = true
+        this.isDirty.set(true)
+        this.fullText = fullText
+        this.moveToPage(1, SyncDirection.TO_CODEAREA)
     }
 
     private fun saveFile() {
@@ -687,7 +718,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         println("Opening new file")
         val fileChooser = FileChooser()
         fileChooser.title = "Open new File"
-        println(File(settingsController.getSettings().openerBasePath).absolutePath)
         fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath).absoluteFile
         val file = fileChooser.showOpenDialog(FX.primaryStage)
         if (file != null && file.exists()) {
@@ -701,6 +731,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         setFileTitle(file)
         if (this.settingsController.getSettings().pagination) {
             this.fullText = file.readText()
+            this.dirtySinceLastSync = true
             checkForPagination()
         } else {
             replaceText(file.readText())
@@ -762,7 +793,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 closeSearchAndReplace()
             }
         }
-        this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS));
+        this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS))
         // Original: LineNumberFactory.get(codeArea)
         codeArea.paragraphGraphicFactory = PaginatedLineNumberFactory(codeArea) {
             // Needs to return the starting line count of the current page
@@ -796,13 +827,76 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.lastFindEnd = 0
     }
 
-    private fun searchAll(doHighlighting: Boolean = false) {
-        this.removeFindHighlighting()
+    private fun searchAll() {
+        this.allFinds.clear()
         val fullText = getFullText()
         val searchText = getSearchText()
         val ignoreCase = ignoreCaseProperty.get()
         val interpreterMode = this.textInterpreterMode.get() as TextInterpreterMode
-        // TODO Find all
+        if (interpreterMode == TextInterpreterMode.REGEX) {
+            val patternString = if (ignoreCase) "(?i)$searchText" else searchText
+            val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
+            val matcher = pattern.matcher(fullText)
+            while (matcher.find()) {
+                this.allFinds.add(Find(matcher.start(), matcher.end()))
+            }
+        } else {
+            var index = fullText.indexOf(searchText, 0, ignoreCase)
+            while (index < fullText.length && index >= 0) {
+                this.allFinds.add(Find(index, index + searchText.length))
+                index = fullText.indexOf(searchText, index + 1, ignoreCase)
+            }
+        }
+        allFindsSize.set(allFinds.size)
+    }
+
+    private fun highlightAll() {
+        this.removeFindHighlighting()
+        if (allFinds.isEmpty()) {
+            return
+        }
+        moveToIndex(allFinds[0].start)
+        lastFindStart = allFinds[0].start
+        lastFindEnd = allFinds[0].end
+        val pageSize = this.settingsController.getSettings().pageSize
+        for (find in allFinds) {
+            this.hasFindProperty.set(true)
+            if (this.pagination.get() && isInPage(find)) {
+                val start = max(find.start - ((this.page.get() - 1) * pageSize), 0)
+                val end = min(find.start - (this.page.get() * pageSize), pageSize - 1)
+                codeArea.setStyle(start, end, listOf("searchHighlight"))
+            } else {
+                codeArea.setStyle(find.start, find.end, listOf("searchHighlight"))
+            }
+        }
+    }
+
+    private fun replaceAll() {
+        this.searchAll()
+        if (allFinds.isEmpty()) {
+            println("No Replacements made")
+            return
+        }
+        val fulltext = getFullText()
+        val stringBuilder = StringBuilder()
+        val replacementText = this.replaceProperty.get()
+        var lastEndIndex = 0
+        for (find in allFinds) {
+            stringBuilder.append(fulltext.substring(lastEndIndex, find.start))
+            stringBuilder.append(replacementText)
+            lastEndIndex = find.end
+        }
+        stringBuilder.append(fulltext.substring(lastEndIndex))
+        if (pagination.get()) {
+            changeFullText(stringBuilder.toString())
+        } else {
+            this.codeArea.replaceText(stringBuilder.toString())
+        }
+    }
+
+    private fun isInPage(find: Find): Boolean {
+        val pageSize = this.settingsController.getSettings().pageSize
+        return find.end >= (this.page.get() - 1) * pageSize || find.start < this.page.get() * pageSize
     }
 
     private fun findNext() {
@@ -820,8 +914,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val interpreterMode = this.textInterpreterMode.get() as TextInterpreterMode
 
         // Search
-        var regexMatchLength = -1
-        val index = if (this.searchDirection.get() as SearchDirection == SearchDirection.UP) {
+        val find: Find? = if (this.searchDirection.get() as SearchDirection == SearchDirection.UP) {
             // UP
             if (interpreterMode == TextInterpreterMode.REGEX) {
                 val patternString = if (ignoreCase) "(?i)$searchText" else searchText
@@ -829,6 +922,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 // End index of substring is exclusive, so no -1
                 val matcher = pattern.matcher(fullText)
                 var regexStartIndex = -1
+                var regexEndIndex = -1
                 // TODO: This goes through all the matches. This is inefficient.
                 while (true) {
                     try {
@@ -836,16 +930,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         if (!found || matcher.end() > offset) {
                             break
                         }
-                        regexMatchLength = matcher.end() - matcher.start()
                         regexStartIndex = matcher.start()
+                        regexEndIndex = matcher.end()
                     } catch (e: Exception) {
                         break
                     }
                 }
-                regexStartIndex
+                if (regexStartIndex >= 0) Find(regexStartIndex, regexEndIndex) else null
             } else {
                 // - 1 to exclude current search result
-                fullText.lastIndexOf(searchText, offset - 1, ignoreCase)
+                val startIndex = fullText.lastIndexOf(searchText, offset - 1, ignoreCase)
+                if (startIndex >= 0) {
+                    Find(startIndex, startIndex + searchText.length)
+                } else null
             }
         } else {
             // DOWN
@@ -854,22 +951,25 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
                 val matcher = pattern.matcher(fullText)
                 if (matcher.find(offset + 1)) {
-                    regexMatchLength = matcher.end() - matcher.start()
-                    println("Found at ${matcher.start()} till ${matcher.end()} with length $regexMatchLength")
-                    matcher.start()
-                } else -1
+                    Find(matcher.start(), matcher.end())
+                } else null
             } else {
                 // + 1 to exclude current search result
-                fullText.indexOf(searchText, offset + 1, ignoreCase)
+                // TODO: This does not work if the work if the search term is next to the cursor
+                //          and there hasn't been a find yet
+                val startIndex = fullText.indexOf(searchText, offset + 1, ignoreCase)
+                if (startIndex >= 0) {
+                    Find(startIndex, startIndex + searchText.length)
+                } else null
             }
         }
 
         // Move to search result
-        if (index >= 0) {
-            moveToIndex(index)
+        if (find != null) {
+            moveToIndex(find.start)
             Platform.runLater {
                 val findStart = codeArea.anchor
-                val findLength = if (regexMatchLength < 0) this.findProperty.get().length else regexMatchLength
+                val findLength = find.end - find.start
                 val findEnd = codeArea.anchor + findLength
                 codeArea.clearStyle(lastFindStart, lastFindEnd)
                 codeArea.setStyle(findStart, findEnd, listOf("searchHighlight"))
