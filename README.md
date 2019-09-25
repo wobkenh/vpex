@@ -46,7 +46,7 @@ If you do not know what to work on, you can chose a task from the todo list belo
 
 ## TODOs
 
-- List all feature to quickly overview all matches of a search query
+- List-all-feature to quickly overview all matches of a search query
 - Native packaging (e.g. using java packager)
 - Encoding detection and conversion
 - Find/replace history
