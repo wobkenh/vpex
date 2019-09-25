@@ -23,4 +23,5 @@
 hs_err_pid*
 
 sh/deploy.sh
+sh/deploy-updater.sh
 target

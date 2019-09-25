@@ -6,10 +6,14 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="vpex" />
+        <module name="updater" />
+        <module name="main" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
+      <module name="main" target="1.5" />
+      <module name="parent" target="1.5" />
+      <module name="updater" target="1.5" />
       <module name="vpex" target="1.5" />
     </bytecodeTargetLevel>
   </component>
