@@ -729,7 +729,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val stringBuilder = StringBuilder()
         var dataText = ""
         var state: XmlCharState = XmlCharState.BETWEEN
+        var ignoreCharCount = 0
         for (index in fulltext.indices) {
+            if (ignoreCharCount > 0) {
+                ignoreCharCount--
+                continue
+            }
             val char = fulltext[index]
             when (state) {
                 XmlCharState.BETWEEN -> {
@@ -739,6 +744,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         state = when (fulltext[index + 1]) {
                             '?' -> XmlCharState.XML_TAG
                             '/' -> XmlCharState.CLOSING_TAG
+                            '!' -> if (fulltext[index + 2] == '[') XmlCharState.CDATA else XmlCharState.COMMENT
                             else -> XmlCharState.OPENING_TAG
                         }
                     }
@@ -768,7 +774,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                             XmlCharState.CLOSING_TAG
                         } else {
                             stringBuilder.append("<")
-                            XmlCharState.OPENING_TAG
+                            if (fulltext[index + 1] == '!') {
+                                if (fulltext[index + 2] == '[') XmlCharState.CDATA else XmlCharState.COMMENT
+                            } else {
+                                XmlCharState.OPENING_TAG
+                            }
                         }
                         dataText = ""
                     }
@@ -777,6 +787,22 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     stringBuilder.append(char)
                     if (char == '>') {
                         state = XmlCharState.BETWEEN
+                    }
+                }
+                XmlCharState.COMMENT -> {
+                    stringBuilder.append(char)
+                    if (char == '-' && fulltext[index + 1] == '-' && fulltext[index + 2] == '>') {
+                        stringBuilder.append("->")
+                        ignoreCharCount = 2
+                        state = XmlCharState.BETWEEN
+                    }
+                }
+                XmlCharState.CDATA -> {
+                    stringBuilder.append(char)
+                    if (char == ']' && fulltext[index + 1] == ']' && fulltext[index + 2] == '>') {
+                        stringBuilder.append("]>")
+                        ignoreCharCount = 2
+                        state = XmlCharState.DATA
                     }
                 }
             }
