@@ -17,6 +17,7 @@ import javafx.geometry.Pos
 import javafx.scene.control.Alert
 import javafx.scene.control.Alert.AlertType.INFORMATION
 import javafx.scene.control.ButtonType
+import javafx.scene.control.Label
 import javafx.scene.control.TextInputDialog
 import javafx.scene.input.KeyCode
 import javafx.scene.input.TransferMode
@@ -47,6 +48,7 @@ import javax.xml.validation.SchemaFactory
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.round
 
 
 class MainView : View("VPEX: View, parse and edit large XML Files") {
@@ -64,6 +66,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var lineCount = SimpleIntegerProperty(0)
     private val statusTextProperty = SimpleStringProperty("")
     private val progressProperty = SimpleDoubleProperty(-1.0)
+
+    // Memory monitor
+    private val maxMemory = round(Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0).toLong()
+    private val allocatedMemory = SimpleLongProperty(0)
+    private val reservedMemory = SimpleLongProperty(0)
+    private var memoryMonitorThread: Thread? = null
+    private var stopMonitorThread = false
+    private val showMonitorThread = SimpleBooleanProperty(false)
 
     // Search and Replace
 
@@ -120,6 +130,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             } else {
                 logger.info { "Up to date." }
                 statusTextProperty.set("")
+            }
+        }
+        FX.primaryStage.setOnCloseRequest {
+            if (memoryMonitorThread != null) {
+                stopMonitorThread = true
+                logger.info { "Set stop flag for memory monitor thread" }
             }
         }
     }
@@ -381,6 +397,21 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         numberFormat.format(it)
                     })
                 }
+                var memoryLabel: Label? = null
+                label(allocatedMemory.stringBinding {
+                    if (memoryLabel != null) {
+                        val percentAllocated = round((allocatedMemory.get() / (maxMemory * 1.0)) * 100)
+                        val percentReserved = round((reservedMemory.get() / (maxMemory * 1.0)) * 100)
+                        memoryLabel!!.style = "-fx-background-color: linear-gradient(to right, #0A92BF $percentAllocated%, #0ABFEE $percentAllocated%, #0ABFEE $percentReserved%, #eee $percentReserved%)"
+                    }
+                    "${it}MB of ${maxMemory}MB"
+                }) {
+                    paddingHorizontal = 5
+                    isFillHeight = true
+                    maxHeight = Double.MAX_VALUE
+                    removeWhen(showMonitorThread.not())
+                    memoryLabel = this
+                }
 
             }
         }
@@ -429,6 +460,43 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
         checkForPagination()
+        if (settingsController.getSettings().memoryIndicator) {
+            if (memoryMonitorThread == null) {
+                startMemoryMonitorThread()
+                showMonitorThread.set(true)
+            }
+        } else {
+            if (memoryMonitorThread != null) {
+                stopMonitorThread = true
+                memoryMonitorThread = null
+                showMonitorThread.set(false)
+            }
+        }
+    }
+
+    private fun startMemoryMonitorThread() {
+        val thread = Thread {
+            while (true) {
+                if (stopMonitorThread) {
+                    stopMonitorThread = false
+                    logger.info { "Stopping memory monitor thread" }
+                    break
+                }
+                val runtime = Runtime.getRuntime()
+                val allocatedMemory = runtime.totalMemory() - runtime.freeMemory()
+                val reservedMemory = runtime.totalMemory()
+                logger.trace {
+                    "Allocated: $allocatedMemory - Reserved: $reservedMemory - Max: $maxMemory"
+                }
+                Platform.runLater {
+                    this.allocatedMemory.set(round(allocatedMemory / 1024.0 / 1024.0).toLong())
+                    this.reservedMemory.set(round(reservedMemory / 1024.0 / 1024.0).toLong())
+                }
+                Thread.sleep(3000)
+            }
+        }
+        thread.start()
+        memoryMonitorThread = thread
     }
 
     private fun replaceText(text: String) {

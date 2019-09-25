@@ -15,7 +15,8 @@ class Settings(
         val paginationThreshold: Int,
         val autoUpdate: Boolean,
         val proxyHost: String,
-        val proxyPort: Int?
+        val proxyPort: Int?,
+        val memoryIndicator: Boolean
 ) {
     fun hasProxy(): Boolean = proxyHost.isNotBlank()
 

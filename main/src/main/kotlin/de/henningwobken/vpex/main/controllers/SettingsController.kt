@@ -34,6 +34,7 @@ class SettingsController : Controller() {
         properties.setProperty("autoUpdate", settings.autoUpdate.toString())
         properties.setProperty("proxyHost", settings.proxyHost)
         properties.setProperty("proxyPort", settings.proxyPort.toString())
+        properties.setProperty("memoryIndicator", settings.memoryIndicator.toString())
         properties.store(configFile.outputStream(), "")
     }
 
@@ -60,7 +61,8 @@ class SettingsController : Controller() {
                         properties.getProperty("paginationThreshold", "30000000").toInt(),
                         properties.getProperty("autoUpdate", "true") == "true",
                         properties.getProperty("proxyHost", ""),
-                        properties.getProperty("proxyPort", "").toIntOrNull()
+                        properties.getProperty("proxyPort", "").toIntOrNull(),
+                        properties.getProperty("memoryIndicator", "false") == "true"
                 )
             } catch (e: Exception) {
                 println("Error while parsing settings.")
@@ -90,7 +92,8 @@ class SettingsController : Controller() {
                     30000000,
                     true,
                     "",
-                    null
+                    null,
+                    false
             )
 
 

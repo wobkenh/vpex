@@ -5,7 +5,7 @@
     <parent>
         <groupId>de.henningwobken.vpex</groupId>
         <artifactId>parent</artifactId>
-        <version>0.7</version>
+        <version>${revision}</version>
     </parent>
     <artifactId>main</artifactId>
     <modelVersion>4.0.0</modelVersion>
@@ -55,22 +55,22 @@
             </plugin>
         </plugins>
 
-        <!--        <resources>-->
-        <!--            <resource>-->
-        <!--                <directory>src/main/resources</directory>-->
-        <!--                <filtering>true</filtering>-->
-        <!--                <includes>-->
-        <!--                    <include>**/version.txt</include>-->
-        <!--                </includes>-->
-        <!--            </resource>-->
-        <!--            <resource>-->
-        <!--                <directory>src/main/resources</directory>-->
-        <!--                <filtering>false</filtering>-->
-        <!--                <excludes>-->
-        <!--                    <exclude>**/version.txt</exclude>-->
-        <!--                </excludes>-->
-        <!--            </resource>-->
-        <!--        </resources>-->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/version.txt</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>**/version.txt</exclude>
+                </excludes>
+            </resource>
+        </resources>
     </build>
 
 </project>

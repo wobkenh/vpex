@@ -30,6 +30,7 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val proxyPortProperty = SimpleStringProperty()
     private val targetVersionProperty = SimpleStringProperty()
     private val progressProperty = SimpleDoubleProperty(-1.0)
+    private val memoryIndicatorProperty = SimpleBooleanProperty()
 
     init {
         val settings = settingsController.getSettings()
@@ -44,6 +45,7 @@ class SettingsView : View("VPEX - Einstellungen") {
         autoUpdateProperty.set(settings.autoUpdate)
         proxyHostProperty.set(settings.proxyHost)
         proxyPortProperty.set(settings.proxyPort?.toString() ?: "")
+        memoryIndicatorProperty.set(settings.memoryIndicator)
     }
 
     override val root = borderpane {
@@ -71,6 +73,9 @@ class SettingsView : View("VPEX - Einstellungen") {
                             }
                         }
                     }
+                }
+                field("Memory Indicator") {
+                    checkbox("", memoryIndicatorProperty)
                 }
             }
             fieldset("Paths") {
@@ -191,7 +196,8 @@ class SettingsView : View("VPEX - Einstellungen") {
                 paginationThresholdProperty.get(),
                 autoUpdateProperty.get(),
                 proxyHostProperty.get(),
-                proxyPortProperty.get().toIntOrNull()
+                proxyPortProperty.get().toIntOrNull(),
+                memoryIndicatorProperty.get()
         )
         settingsController.saveSettings(settings)
         backToMainScreen()

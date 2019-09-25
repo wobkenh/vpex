@@ -7,7 +7,7 @@
     <groupId>de.henningwobken.vpex</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>0.7</version>
+    <version>${revision}</version>
 
     <modules>
         <module>updater</module>
@@ -15,6 +15,7 @@
     </modules>
 
     <properties>
+        <revision>0.8</revision>
         <kotlin.version>1.3.20</kotlin.version>
         <tornadofx.version>1.7.19</tornadofx.version>
         <kotlin.compiler.incremental>true</kotlin.compiler.incremental>
