@@ -615,7 +615,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
      */
     private fun moveToPage(page: Int, syncDirection: SyncDirection) {
         logger.info("Moving to page $page with sync direction $syncDirection")
-        log.info("Moving to page $page with sync direction $syncDirection")
         val pageSize = settingsController.getSettings().pageSize
         lastFindEnd = 0
         lastFindStart = 0
