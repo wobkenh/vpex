@@ -66,6 +66,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var lineCount = SimpleIntegerProperty(0)
     private val statusTextProperty = SimpleStringProperty("")
     private val progressProperty = SimpleDoubleProperty(-1.0)
+    private val saveLockProperty = SimpleBooleanProperty(false)
 
     // Memory monitor
     private val maxMemory = round(Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0).toLong()
@@ -97,6 +98,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var fullText: String = ""
     private val pagination = SimpleBooleanProperty()
     private val page = SimpleIntegerProperty(1)
+    private val pageDisplayProperty = SimpleIntegerProperty(1)
     private var maxPage = SimpleIntegerProperty(0)
     private var pageLineCounts = IntArray(0) // Line count of each page
     private var pageStartingLineCounts = IntArray(0) // For each page the number of lines before this page
@@ -342,6 +344,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         }
                     })
                 }
+                button {
+                    removeWhen { saveLockProperty }
+                    graphic = internalResourceController.getAsSvg(InternalResource.LOCK_OPEN)
+                }.action {
+                    saveLockProperty.set(true)
+                }
+                button {
+                    removeWhen { saveLockProperty.not() }
+                    graphic = internalResourceController.getAsSvg(InternalResource.LOCK_CLOSED)
+                }.action {
+                    saveLockProperty.set(false)
+                }
                 label("") {
                     fillHorizontal(this)
                 }
@@ -363,8 +377,20 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                     hbox(5) {
                         alignment = Pos.CENTER
-                        // TODO: Textfield
-                        label(page)
+                        textfield(pageDisplayProperty) {
+                            page.onChange { pageDisplayProperty.set(page.get()) }
+                            prefWidth = 50.0
+                            maxWidth = 50.0
+                        }.action {
+                            val enteredPage = pageDisplayProperty.get()
+                            if (enteredPage < 1 || enteredPage > maxPage.get()) {
+                                pageDisplayProperty.set(page.get())
+                            } else {
+                                val dirty = isDirty.get()
+                                moveToPage(pageDisplayProperty.get())
+                                isDirty.set(dirty)
+                            }
+                        }
                         label("/")
                         label(maxPage)
                     }
@@ -824,7 +850,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun saveFile() {
         logger.info("Saving")
         val file = this.file
-        if (file != null) {
+        if (file != null && !saveLockProperty.get()) {
             val text = getFullText()
             Files.write(file.toPath(), text.toByteArray())
             isDirty.set(false)

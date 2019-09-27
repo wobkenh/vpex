@@ -35,6 +35,7 @@ class SettingsController : Controller() {
         properties.setProperty("proxyHost", settings.proxyHost)
         properties.setProperty("proxyPort", settings.proxyPort.toString())
         properties.setProperty("memoryIndicator", settings.memoryIndicator.toString())
+        properties.setProperty("saveLock", settings.saveLock.toString())
         properties.store(configFile.outputStream(), "")
     }
 
@@ -62,7 +63,8 @@ class SettingsController : Controller() {
                         properties.getProperty("autoUpdate", "true") == "true",
                         properties.getProperty("proxyHost", ""),
                         properties.getProperty("proxyPort", "").toIntOrNull(),
-                        properties.getProperty("memoryIndicator", "false") == "true"
+                        properties.getProperty("memoryIndicator", "false") == "true",
+                        properties.getProperty("saveLock", "false") == "true"
                 )
             } catch (e: Exception) {
                 println("Error while parsing settings.")
@@ -93,6 +95,7 @@ class SettingsController : Controller() {
                     true,
                     "",
                     null,
+                    false,
                     false
             )
 

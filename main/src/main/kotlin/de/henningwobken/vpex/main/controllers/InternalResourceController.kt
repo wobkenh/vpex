@@ -1,11 +1,18 @@
 package de.henningwobken.vpex.main.controllers
 
+import afester.javafx.svg.SvgLoader
 import de.henningwobken.vpex.main.Vpex
 import de.henningwobken.vpex.main.model.InternalResource
+import javafx.scene.Group
 import javafx.scene.image.Image
 import tornadofx.*
 
 class InternalResourceController : Controller() {
+
+    fun getAsSvg(resource: InternalResource): Group {
+        return SvgLoader().loadSvg(Vpex::class.java.classLoader.getResourceAsStream(resource.filename))
+    }
+
     fun getAsImage(resource: InternalResource): Image {
         return Image(Vpex::class.java.classLoader.getResourceAsStream(resource.filename))
     }

@@ -31,6 +31,7 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val targetVersionProperty = SimpleStringProperty()
     private val progressProperty = SimpleDoubleProperty(-1.0)
     private val memoryIndicatorProperty = SimpleBooleanProperty()
+    private val saveLockProperty = SimpleBooleanProperty()
 
     init {
         val settings = settingsController.getSettings()
@@ -46,6 +47,7 @@ class SettingsView : View("VPEX - Einstellungen") {
         proxyHostProperty.set(settings.proxyHost)
         proxyPortProperty.set(settings.proxyPort?.toString() ?: "")
         memoryIndicatorProperty.set(settings.memoryIndicator)
+        saveLockProperty.set(settings.saveLock)
     }
 
     override val root = borderpane {
@@ -78,7 +80,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                     checkbox("", memoryIndicatorProperty)
                 }
             }
-            fieldset("Paths") {
+            fieldset("Files") {
                 field("Schema Root Location") {
                     button("Change") {
                         action {
@@ -104,6 +106,10 @@ class SettingsView : View("VPEX - Einstellungen") {
                         }
                     }
                     label(openerBasePathProperty)
+                }
+                field("Lock save operations") {
+                    tooltip("When save lock is activated, you will not be able to overwrite the file currently open. (Save as is still possible)")
+                    checkbox("Disables 'save' in favor of 'save as'", saveLockProperty)
                 }
             }
             fieldset("Transformation") {
@@ -197,7 +203,8 @@ class SettingsView : View("VPEX - Einstellungen") {
                 autoUpdateProperty.get(),
                 proxyHostProperty.get(),
                 proxyPortProperty.get().toIntOrNull(),
-                memoryIndicatorProperty.get()
+                memoryIndicatorProperty.get(),
+                saveLockProperty.get()
         )
         settingsController.saveSettings(settings)
         backToMainScreen()

@@ -17,6 +17,17 @@
         <main.class>de.henningwobken.vpex.main.Vpex</main.class>
     </properties>
 
+    <dependencies>
+        <!-- SVG -->
+        <!-- https://mvnrepository.com/artifact/com.github.afester.javafx/FranzXaver -->
+        <dependency>
+            <groupId>com.github.afester.javafx</groupId>
+            <artifactId>FranzXaver</artifactId>
+            <version>0.1</version>
+        </dependency>
+
+    </dependencies>
+
     <build>
         <sourceDirectory>src/main/kotlin</sourceDirectory>
         <testSourceDirectory>${project.basedir}/src/test/kotlin</testSourceDirectory>

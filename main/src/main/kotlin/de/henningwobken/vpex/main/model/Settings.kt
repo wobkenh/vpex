@@ -16,7 +16,8 @@ class Settings(
         val autoUpdate: Boolean,
         val proxyHost: String,
         val proxyPort: Int?,
-        val memoryIndicator: Boolean
+        val memoryIndicator: Boolean,
+        val saveLock: Boolean
 ) {
     fun hasProxy(): Boolean = proxyHost.isNotBlank()
 
