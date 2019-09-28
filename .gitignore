@@ -24,4 +24,5 @@ hs_err_pid*
 
 sh/deploy.sh
 sh/deploy-updater.sh
+example/large_examples/*.xml
 target
