@@ -32,6 +32,8 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val progressProperty = SimpleDoubleProperty(-1.0)
     private val memoryIndicatorProperty = SimpleBooleanProperty()
     private val saveLockProperty = SimpleBooleanProperty()
+    private val diskPaginationProperty = SimpleBooleanProperty()
+    private val diskPaginationThresholdProperty = SimpleIntegerProperty()
 
     init {
         val settings = settingsController.getSettings()
@@ -48,6 +50,8 @@ class SettingsView : View("VPEX - Einstellungen") {
         proxyPortProperty.set(settings.proxyPort?.toString() ?: "")
         memoryIndicatorProperty.set(settings.memoryIndicator)
         saveLockProperty.set(settings.saveLock)
+        diskPaginationProperty.set(settings.diskPagination)
+        diskPaginationThresholdProperty.set(settings.diskPaginationThreshold)
     }
 
     override val root = borderpane {
@@ -139,6 +143,20 @@ class SettingsView : View("VPEX - Einstellungen") {
                     }
                 }
             }
+            fieldset("Paginate from disk mode") {
+                label("Context: Very large files can't be kept in memory. This mode always reads from disk.")
+                field("Paginate from disk") {
+                    checkbox("", diskPaginationProperty)
+                }
+                field("Paginate from disk threshold") {
+                    tooltip("Minimum filesize to activate paginate from disk")
+                    textfield(diskPaginationThresholdProperty) {
+                        prefWidth = 100.0
+                        maxWidth = 100.0
+                    }
+                    label("MB")
+                }
+            }
             fieldset("Updates") {
                 field("Check for updates at startup") {
                     checkbox("", autoUpdateProperty)
@@ -204,7 +222,9 @@ class SettingsView : View("VPEX - Einstellungen") {
                 proxyHostProperty.get(),
                 proxyPortProperty.get().toIntOrNull(),
                 memoryIndicatorProperty.get(),
-                saveLockProperty.get()
+                saveLockProperty.get(),
+                diskPaginationProperty.get(),
+                diskPaginationThresholdProperty.get()
         )
         settingsController.saveSettings(settings)
         backToMainScreen()

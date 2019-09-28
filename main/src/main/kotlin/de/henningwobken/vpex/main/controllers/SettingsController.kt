@@ -3,12 +3,13 @@ package de.henningwobken.vpex.main.controllers
 import de.henningwobken.vpex.main.model.Settings
 import javafx.scene.control.Alert
 import javafx.scene.layout.Region
+import mu.KotlinLogging
 import tornadofx.*
 import java.io.File
 import java.util.*
 
 class SettingsController : Controller() {
-
+    private val logger = KotlinLogging.logger {}
     private val configFile = File(System.getProperty("user.home") + "/.vpex/config.properties")
     private var settings: Settings
 
@@ -36,6 +37,8 @@ class SettingsController : Controller() {
         properties.setProperty("proxyPort", settings.proxyPort.toString())
         properties.setProperty("memoryIndicator", settings.memoryIndicator.toString())
         properties.setProperty("saveLock", settings.saveLock.toString())
+        properties.setProperty("diskPagination", settings.diskPagination.toString())
+        properties.setProperty("diskPaginationThreshold", settings.diskPaginationThreshold.toString())
         properties.store(configFile.outputStream(), "")
     }
 
@@ -64,12 +67,14 @@ class SettingsController : Controller() {
                         properties.getProperty("proxyHost", ""),
                         properties.getProperty("proxyPort", "").toIntOrNull(),
                         properties.getProperty("memoryIndicator", "false") == "true",
-                        properties.getProperty("saveLock", "false") == "true"
+                        properties.getProperty("saveLock", "false") == "true",
+                        properties.getProperty("diskPagination", "false") == "true",
+                        properties.getProperty("diskPaginationThreshold", "500").toInt()
                 )
             } catch (e: Exception) {
-                println("Error while parsing settings.")
+                logger.error { "Error while parsing settings." }
                 e.printStackTrace()
-                println("Deleting old config file.")
+                logger.error { "Deleting old config file." }
                 val errorMessage = "There was an error loading the config file: " +
                         e.message +
                         "\nI deleted the old config file and replaced it with a new one with default settings."
@@ -96,7 +101,9 @@ class SettingsController : Controller() {
                     "",
                     null,
                     false,
-                    false
+                    false,
+                    true,
+                    500
             )
 
 
@@ -114,7 +121,7 @@ class SettingsController : Controller() {
     }
 
     private fun showAlert(alertType: Alert.AlertType, title: String, message: String) {
-        println(message)
+        logger.error { message }
         val alert = Alert(alertType, message)
         alert.title = title
         alert.dialogPane.minHeight = Region.USE_PREF_SIZE

@@ -17,7 +17,9 @@ class Settings(
         val proxyHost: String,
         val proxyPort: Int?,
         val memoryIndicator: Boolean,
-        val saveLock: Boolean
+        val saveLock: Boolean,
+        val diskPagination: Boolean,
+        val diskPaginationThreshold: Int
 ) {
     fun hasProxy(): Boolean = proxyHost.isNotBlank()
 

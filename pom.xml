@@ -15,7 +15,7 @@
     </modules>
 
     <properties>
-        <revision>0.8</revision>
+        <revision>0.9</revision>
         <kotlin.version>1.3.20</kotlin.version>
         <tornadofx.version>1.7.19</tornadofx.version>
         <kotlin.compiler.incremental>true</kotlin.compiler.incremental>

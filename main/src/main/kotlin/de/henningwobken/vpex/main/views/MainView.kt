@@ -5,12 +5,11 @@ import de.henningwobken.vpex.main.controllers.InternalResourceController
 import de.henningwobken.vpex.main.controllers.SettingsController
 import de.henningwobken.vpex.main.controllers.StringUtils
 import de.henningwobken.vpex.main.controllers.UpdateController
+import de.henningwobken.vpex.main.model.DisplayMode
 import de.henningwobken.vpex.main.model.InternalResource
 import de.henningwobken.vpex.main.model.SearchDirection
-import de.henningwobken.vpex.main.model.TextInterpreterMode
-import de.henningwobken.vpex.main.model.XmlCharState
-import de.henningwobken.vpex.main.xml.ResourceResolver
-import de.henningwobken.vpex.main.xml.XmlErrorHandler
+import de.henningwobken.vpex.main.model.SearchTextMode
+import de.henningwobken.vpex.main.xml.*
 import javafx.application.Platform
 import javafx.beans.property.*
 import javafx.geometry.Pos
@@ -31,9 +30,7 @@ import org.fxmisc.flowless.VirtualizedScrollPane
 import org.fxmisc.richtext.CodeArea
 import org.xml.sax.InputSource
 import tornadofx.*
-import java.io.File
-import java.io.StringReader
-import java.io.StringWriter
+import java.io.*
 import java.nio.file.Files
 import java.text.NumberFormat
 import java.util.regex.Pattern
@@ -57,6 +54,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val settingsController: SettingsController by inject()
     private val updateController: UpdateController by inject()
     private val stringUtils: StringUtils by inject()
+    private val xmlFormattingService: XmlFormattingService by inject()
 
     private var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
@@ -65,7 +63,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var file: File? = null
     private var lineCount = SimpleIntegerProperty(0)
     private val statusTextProperty = SimpleStringProperty("")
-    private val progressProperty = SimpleDoubleProperty(-1.0)
+    private val downloadProgressProperty = SimpleDoubleProperty(-1.0)
+    private val fileProgressProperty = SimpleDoubleProperty(-1.0)
     private val saveLockProperty = SimpleBooleanProperty(false)
 
     // Memory monitor
@@ -95,8 +94,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val ignoreCaseProperty = SimpleBooleanProperty(false)
 
     // Pagination
+    private val displayMode = SimpleObjectProperty<DisplayMode>()
     private var fullText: String = ""
-    private val pagination = SimpleBooleanProperty()
     private val page = SimpleIntegerProperty(1)
     private val pageDisplayProperty = SimpleIntegerProperty(1)
     private var maxPage = SimpleIntegerProperty(0)
@@ -114,15 +113,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             if (updateController.updateAvailable()) {
                 logger.info { "Update available. Downloading." }
                 statusTextProperty.set("Downloading updates")
-                progressProperty.set(0.0)
+                downloadProgressProperty.set(0.0)
                 updateController.downloadUpdate(progressCallback = { progress, max ->
                     Platform.runLater {
-                        progressProperty.set(progress / (max * 1.0))
+                        downloadProgressProperty.set(progress / (max * 1.0))
                     }
                 }, finishCallback = {
                     Platform.runLater {
                         logger.info { "Download finished." }
-                        progressProperty.set(-1.0)
+                        downloadProgressProperty.set(-1.0)
                         statusTextProperty.set("")
                         confirm("New Version", "A new version has been downloaded. Restart?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
                             updateController.applyUpdate()
@@ -256,11 +255,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                 togglegroup(textInterpreterMode) {
                                     val toggleGroup = this
                                     vbox(10) {
-                                        radiobutton("Normal", toggleGroup, TextInterpreterMode.NORMAL) {
+                                        radiobutton("Normal", toggleGroup, SearchTextMode.NORMAL) {
                                             this.selectedProperty().set(true)
                                         }
-                                        radiobutton("Extended", toggleGroup, TextInterpreterMode.EXTENDED)
-                                        radiobutton("Regex", toggleGroup, TextInterpreterMode.REGEX)
+                                        radiobutton("Extended", toggleGroup, SearchTextMode.EXTENDED)
+                                        radiobutton("Regex", toggleGroup, SearchTextMode.REGEX)
                                     }
                                 }
                             }
@@ -360,12 +359,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     fillHorizontal(this)
                 }
                 label(statusTextProperty)
-                progressbar(progressProperty) {
-                    removeWhen(progressProperty.lessThan(0))
+                progressbar(downloadProgressProperty) {
+                    removeWhen(downloadProgressProperty.lessThan(0))
+                }
+                progressbar(fileProgressProperty) {
+                    removeWhen(fileProgressProperty.lessThan(0))
                 }
                 hbox(10) {
                     alignment = Pos.CENTER
-                    visibleWhen(pagination)
+                    removeWhen(displayMode.isEqualTo(DisplayMode.PLAIN))
                     button("<<") {
                         disableWhen {
                             page.isEqualTo(1)
@@ -409,10 +411,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     replaceText("")
                     fullText = ""
                     lineCount.bind(codeArea.paragraphs.sizeProperty())
-                    pagination.set(false)
+                    displayMode.set(DisplayMode.PLAIN)
                     isDirty.set(false)
                 }
                 hbox(10) {
+                    removeWhen { displayMode.isEqualTo(DisplayMode.DISK_PAGINATION) }
                     paddingAll = 10.0
                     label("Lines:")
                     label(lineCount.stringBinding {
@@ -485,7 +488,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         logger.info("Docking view")
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
-        checkForPagination()
+        checkForDisplayModeChange()
         if (settingsController.getSettings().memoryIndicator) {
             if (memoryMonitorThread == null) {
                 startMemoryMonitorThread()
@@ -531,40 +534,63 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.textOperationLock = false
     }
 
-    private fun checkForPagination() {
-        logger.info("Checking for Pagination")
-        if (this.settingsController.getSettings().pagination) {
-            // Pagination might have been disabled previously
-            // Text might still be only in codeArea
-            val textLength = max(this.fullText.length, this.codeArea.text.length)
-            if (textLength > this.settingsController.getSettings().paginationThreshold) {
-                if (!pagination.get()) {
-                    pagination.set(true)
-                    logger.info("Pagination was previously disabled. Setting up pagination")
-                    val wasDirty = this.isDirty.get()
-                    if (this.fullText == "") {
-                        logger.info("Saving Code from CodeArea to FullText")
-                        this.dirtySinceLastSync = true
-                        this.fullText = this.codeArea.text
-                    }
-                    this.moveToPage(1, SyncDirection.TO_CODEAREA)
-                    this.lineCount.bind(this.pageTotalLineCount)
-                    this.isDirty.set(wasDirty)
-                }
-                logger.info("Pagination enabled")
-            } else {
-                disablePagination()
-                logger.info("Pagination disabled since text is too short")
+    private fun checkForDisplayModeChange() {
+        logger.info("Checking for Display Mode Change")
+        // When a new file has been opened or the settings have changed,
+        // the display mode might have to be changed
+
+        val file = this.file
+        val settings = this.settingsController.getSettings()
+        if (settings.diskPagination && file != null && file.length() > settings.diskPaginationThreshold * 1024 * 1024) {
+            // Should be disk pagination
+            if (displayMode.get() == DisplayMode.PLAIN || displayMode.get() == DisplayMode.PAGINATION) {
+                displayMode.set(DisplayMode.DISK_PAGINATION)
+                codeArea.replaceText("")
+                fullText = ""
+                moveToPage(1)
+                codeArea.isEditable = false
             }
+        } else if (settings.pagination && max(this.fullText.length, this.codeArea.text.length) > settings.paginationThreshold) {
+            // Should be pagination
+            if (displayMode.get() == DisplayMode.PLAIN) {
+                displayMode.set(DisplayMode.PAGINATION)
+                // Text might still be only in codeArea
+                logger.info("Pagination was previously disabled. Setting up pagination")
+                val wasDirty = this.isDirty.get()
+                if (this.fullText == "") {
+                    logger.info("Saving Code from CodeArea to FullText")
+                    this.dirtySinceLastSync = true
+                    this.fullText = this.codeArea.text
+                }
+                this.moveToPage(1, SyncDirection.TO_CODEAREA)
+                this.lineCount.bind(this.pageTotalLineCount)
+                this.isDirty.set(wasDirty)
+            } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                codeArea.isEditable = true
+                displayMode.set(DisplayMode.PAGINATION)
+                if (file != null) {
+                    openFile(file)
+                }
+            }
+
         } else {
-            disablePagination()
-            logger.info("Pagination disabled in config")
+            // Should be plain
+            if (displayMode.get() == DisplayMode.PAGINATION) {
+                displayMode.set(DisplayMode.PLAIN)
+                disablePagination()
+            } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                displayMode.set(DisplayMode.PLAIN)
+                codeArea.isEditable = true
+                if (file != null) {
+                    openFile(file)
+                }
+            }
         }
     }
 
     private fun disablePagination() {
         val wasDirty = this.isDirty.get()
-        this.pagination.set(false)
+        this.displayMode.set(DisplayMode.PLAIN)
         if (this.codeArea.text.length < this.fullText.length) {
             replaceText(this.fullText)
         }
@@ -593,7 +619,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun calcMaxPage(): Int {
-        val max = ceil(this.fullText.length / this.settingsController.getSettings().pageSize.toDouble()).toInt()
+        val max = if (displayMode.get() == DisplayMode.PAGINATION) {
+            ceil(this.fullText.length / this.settingsController.getSettings().pageSize.toDouble()).toInt()
+        } else {
+            val file = file
+            if (file != null) {
+                ceil(file.length() / settingsController.getSettings().pageSize.toDouble()).toInt()
+            } else 0
+        }
         logger.info("Setting max page to $max")
         return max
     }
@@ -620,18 +653,41 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         lastFindStart = 0
         hasFindProperty.set(false)
         if (dirtySinceLastSync) {
-            if (syncDirection == SyncDirection.TO_FULLTEXT) {
-                logger.info("Syncing CodeArea text to full text")
-                this.fullText = this.fullText.replaceRange((this.page.get() - 1) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
+            if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                logger.warn { "Changes will be lost." }
             } else {
-                logger.info("Syncing full text to CodeArea")
+                if (syncDirection == SyncDirection.TO_FULLTEXT) {
+                    logger.info("Syncing CodeArea text to full text")
+                    this.fullText = this.fullText.replaceRange((this.page.get() - 1) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
+                } else {
+                    logger.info("Syncing full text to CodeArea")
+                }
+                this.maxPage.set(calcMaxPage())
+                this.calcLinesAllPages()
+                this.dirtySinceLastSync = false
             }
-            this.maxPage.set(calcMaxPage())
-            this.calcLinesAllPages()
-            this.dirtySinceLastSync = false
         }
         this.page.set(page)
-        replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
+        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            val file = getFile()
+            val destinationBuffer = CharArray(pageSize)
+            val offset = pageSize * (page - 1)
+            val inputStreamReader = file.inputStream().reader()
+            inputStreamReader.skip(offset.toLong())
+            inputStreamReader.read(destinationBuffer, 0, pageSize)
+            inputStreamReader.close()
+            replaceText(String(destinationBuffer))
+        } else {
+            replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
+        }
+    }
+
+    private fun getFile(): File {
+        val file = this.file
+        if (file == null) {
+            logger.error { "File not set" }
+        }
+        return file!!
     }
 
     private fun moveToPage(page: Int) {
@@ -656,7 +712,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 userLine = it.toInt()
                 userColumn = 0
             }
-            if (pagination.get()) {
+            if (displayMode.get() == DisplayMode.PAGINATION) {
                 moveToPage(this.page.get()) // Might change starting line counts if there are unsaved changes
                 var page = 1
                 for (i in this.maxPage.get() downTo 1) {
@@ -671,6 +727,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val line = max(min(userLine - pageStartingLineCounts[page - 1], codeArea.paragraphs.size), 1) - 1
                 val column = min(userColumn, codeArea.getParagraph(line).length())
                 moveToLineColumn(line, column)
+            } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                // TODO: Read next page from file
             } else {
                 val line = max(min(userLine, codeArea.paragraphs.size), 1) - 1
                 val column = min(userColumn, codeArea.getParagraph(line).length())
@@ -680,14 +738,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun moveToIndex(index: Int) {
-        if (pagination.get()) {
-            val page = getPageOfIndex(index)
-            if (page != this.page.get()) {
-                moveToPage(page)
+        when {
+            displayMode.get() == DisplayMode.PAGINATION -> {
+                val page = getPageOfIndex(index)
+                if (page != this.page.get()) {
+                    moveToPage(page)
+                }
+                this.moveToLineColumn(0, index - ((this.page.get() - 1) * this.settingsController.getSettings().pageSize))
             }
-            this.moveToLineColumn(0, index - ((this.page.get() - 1) * this.settingsController.getSettings().pageSize))
-        } else {
-            moveToLineColumn(0, index)
+            displayMode.get() == DisplayMode.DISK_PAGINATION -> {
+                // TODO: Handle Disk Pagination
+            }
+            else -> moveToLineColumn(0, index)
         }
     }
 
@@ -707,136 +769,192 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun validateSyntax() {
-        logger.info("Validating Syntax...")
-        val saxParserFactory = SAXParserFactory.newInstance()
-        saxParserFactory.isNamespaceAware = true
-        val saxParser = saxParserFactory.newSAXParser()
-        val xmlReader = saxParser.xmlReader
-        xmlReader.parse(InputSource(getFullText().byteInputStream()))
-        alert(INFORMATION, "The council has decided", "The syntax of this xml file is valid.")
+        statusTextProperty.set("Validating Syntax")
+        Thread {
+            logger.info("Validating Syntax...")
+            val saxParserFactory = SAXParserFactory.newInstance()
+            saxParserFactory.isNamespaceAware = true
+            val saxParser = saxParserFactory.newSAXParser()
+            val xmlReader = saxParser.xmlReader
+            if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                val file = getFile()
+                val fileLength = file.length()
+                xmlReader.parse(InputSource(ProgressInputStream(file.inputStream()) {
+                    Platform.runLater {
+                        fileProgressProperty.set(it / fileLength.toDouble())
+                    }
+                }))
+            } else {
+                val text = getFullText()
+                val textLength = text.length
+                xmlReader.parse(InputSource(ProgressInputStream(text.byteInputStream()) {
+                    Platform.runLater {
+                        fileProgressProperty.set(it / textLength.toDouble())
+                    }
+                }))
+            }
+            Platform.runLater {
+                fileProgressProperty.set(-1.0)
+                statusTextProperty.set("")
+                alert(INFORMATION, "The council has decided", "The syntax of this xml file is valid.")
+            }
+        }.start()
     }
 
     private fun validateSchema() {
-        logger.info("Validating against schema")
-        val schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI)
-        schemaFactory.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
-        schemaFactory.errorHandler = XmlErrorHandler()
-        val schema = schemaFactory.newSchema()
-        val validator = schema.newValidator()
-        validator.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
-        validator.validate(SAXSource(InputSource(getFullText().byteInputStream())))
-        alert(INFORMATION, "The council has decided", "This xml file is schematically compliant.")
+        statusTextProperty.set("Validating Schema")
+        Thread {
+            logger.info("Validating against schema")
+            val schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI)
+            schemaFactory.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
+            schemaFactory.errorHandler = XmlErrorHandler()
+            val schema = schemaFactory.newSchema()
+            val validator = schema.newValidator()
+            validator.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
+            if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                val file = getFile()
+                val fileLength = file.length()
+                validator.validate(SAXSource(InputSource(ProgressInputStream(file.inputStream()) {
+                    Platform.runLater {
+                        fileProgressProperty.set(it / fileLength.toDouble())
+                    }
+                })))
+            } else {
+                val text = getFullText()
+                val textLength = text.length
+                validator.validate(SAXSource(InputSource(ProgressInputStream(text.byteInputStream()) {
+                    Platform.runLater {
+                        fileProgressProperty.set(it / textLength.toDouble())
+                    }
+                })))
+            }
+            Platform.runLater {
+                fileProgressProperty.set(-1.0)
+                statusTextProperty.set("")
+                alert(INFORMATION, "The council has decided", "This xml file is schematically compliant.")
+            }
+        }.start()
     }
 
     private fun prettyPrint() {
-        val transformerFactory = TransformerFactory.newInstance()
-        transformerFactory.setAttribute("indent-number", settingsController.getSettings().prettyPrintIndent)
-        val transformer = transformerFactory.newTransformer()
+        statusTextProperty.set("Making this xml pretty like a princess")
+
+        // Setting the indent on the transformerFactory does not work anymore, see:
+        // https://stackoverflow.com/questions/15134861/java-lang-illegalargumentexception-not-supported-indent-number
+        // transformerFactory.setAttribute("indent-number", settingsController.getSettings().prettyPrintIndent)
+        val transformer = TransformerFactory.newInstance().newTransformer()
         transformer.setOutputProperty(OutputKeys.INDENT, "yes")
         // Otherwise the root tag will be written into the first line
         // see https://stackoverflow.com/questions/18249490/since-moving-to-java-1-7-xml-document-element-does-not-indent
         transformer.setOutputProperty(OutputKeys.DOCTYPE_PUBLIC, "yes")
-        val stringWriter = StringWriter()
-        val xmlOutput = StreamResult(stringWriter)
-        val xmlInput = StreamSource(StringReader(getFullText()))
-        transformer.transform(xmlInput, xmlOutput)
-        if (pagination.get()) {
-            changeFullText(xmlOutput.writer.toString())
+        transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", settingsController.getSettings().prettyPrintIndent.toString())
+
+        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            // Overwriting the existing file would probably be a bad idea
+            // So let the user chose a new one
+            val outputFile = choseFile()
+            if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
+                Thread {
+                    val inputFile = getFile()
+                    val inputFileLength = inputFile.length()
+                    val xmlOutput = StreamResult(FileWriter(outputFile))
+                    val xmlInput = StreamSource(InputStreamReader(ProgressInputStream(inputFile.inputStream()) {
+                        Platform.runLater {
+                            fileProgressProperty.set(it / inputFileLength.toDouble())
+                        }
+                    }))
+                    transformer.transform(xmlInput, xmlOutput)
+                    Platform.runLater {
+                        fileProgressProperty.set(-1.0)
+                        statusTextProperty.set("")
+                        openFile(outputFile)
+                    }
+                }.start()
+            } else {
+                logger.info { "User did not chose a valid file - aborting" }
+                statusTextProperty.set("")
+            }
         } else {
-            this.codeArea.replaceText(xmlOutput.writer.toString())
+            Thread {
+                val text = getFullText()
+                val textLength = text.length
+                val stringWriter = StringWriter()
+                val xmlOutput = StreamResult(stringWriter)
+                val xmlInput = StreamSource(InputStreamReader(ProgressInputStream(text.byteInputStream()) {
+                    Platform.runLater {
+                        fileProgressProperty.set(it / textLength.toDouble())
+                    }
+                }))
+                transformer.transform(xmlInput, xmlOutput)
+                Platform.runLater {
+                    fileProgressProperty.set(-1.0)
+                    statusTextProperty.set("")
+                    if (displayMode.get() == DisplayMode.PAGINATION) {
+                        changeFullText(xmlOutput.writer.toString())
+                    } else {
+                        codeArea.replaceText(xmlOutput.writer.toString())
+                    }
+                }
+            }.start()
         }
     }
 
     private fun uglyPrint() {
-        // TODO: CDATA
-        // Trim each line
-        val fulltext = this.getFullText()
-        val stringBuilder = StringBuilder()
-        var dataText = ""
-        var state: XmlCharState = XmlCharState.BETWEEN
-        var ignoreCharCount = 0
-        for (index in fulltext.indices) {
-            if (ignoreCharCount > 0) {
-                ignoreCharCount--
-                continue
-            }
-            val char = fulltext[index]
-            when (state) {
-                XmlCharState.BETWEEN -> {
-                    // By only appending '<', we effectively remove everything else between a closing and an opening tag
-                    if (char == '<') {
-                        stringBuilder.append(char)
-                        state = when (fulltext[index + 1]) {
-                            '?' -> XmlCharState.XML_TAG
-                            '/' -> XmlCharState.CLOSING_TAG
-                            '!' -> if (fulltext[index + 2] == '[') XmlCharState.CDATA else XmlCharState.COMMENT
-                            else -> XmlCharState.OPENING_TAG
+        statusTextProperty.set("Making this xml ugly like a Fiat Multipla")
+        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            // Overwriting the existing file would probably be a bad idea
+            // So let the user chose a new one
+            val outputFile = choseFile()
+            if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
+                Thread {
+                    val xmlOutput = FileWriter(outputFile)
+                    val inputFile = getFile()
+                    val inputFileLength = inputFile.length().toDouble()
+                    val xmlInput = ProgressReader(FileReader(inputFile)) {
+                        Platform.runLater {
+                            fileProgressProperty.set(it / inputFileLength)
                         }
                     }
-                }
-                XmlCharState.OPENING_TAG -> {
-                    stringBuilder.append(char)
-                    if (char == '>') {
-                        state = XmlCharState.DATA
+                    xmlFormattingService.uglyPrint(xmlInput, xmlOutput)
+                    Platform.runLater {
+                        fileProgressProperty.set(-1.0)
+                        statusTextProperty.set("")
+                        openFile(outputFile)
                     }
-                }
-                XmlCharState.CLOSING_TAG -> {
-                    stringBuilder.append(char)
-                    if (char == '>') {
-                        state = XmlCharState.BETWEEN
-                    }
-                }
-                XmlCharState.DATA -> {
-                    // After an opening tag, there might be either data or another tag.
-                    // If it is another tag, we need to remove it
-                    // If it is data, we need to keep it
-                    // Therefore, build a tmp string as long as you are in data and add when you know what you are
-                    dataText += char
-                    if (char == '<') {
-                        state = if (fulltext[index + 1] == '/') {
-                            // This was really data
-                            stringBuilder.append(dataText)
-                            XmlCharState.CLOSING_TAG
-                        } else {
-                            stringBuilder.append("<")
-                            if (fulltext[index + 1] == '!') {
-                                if (fulltext[index + 2] == '[') XmlCharState.CDATA else XmlCharState.COMMENT
-                            } else {
-                                XmlCharState.OPENING_TAG
-                            }
-                        }
-                        dataText = ""
-                    }
-                }
-                XmlCharState.XML_TAG -> {
-                    stringBuilder.append(char)
-                    if (char == '>') {
-                        state = XmlCharState.BETWEEN
-                    }
-                }
-                XmlCharState.COMMENT -> {
-                    stringBuilder.append(char)
-                    if (char == '-' && fulltext[index + 1] == '-' && fulltext[index + 2] == '>') {
-                        stringBuilder.append("->")
-                        ignoreCharCount = 2
-                        state = XmlCharState.BETWEEN
-                    }
-                }
-                XmlCharState.CDATA -> {
-                    stringBuilder.append(char)
-                    if (char == ']' && fulltext[index + 1] == ']' && fulltext[index + 2] == '>') {
-                        stringBuilder.append("]>")
-                        ignoreCharCount = 2
-                        state = XmlCharState.DATA
-                    }
-                }
+                }.start()
+            } else {
+                logger.info { "User did not chose a valid file - aborting" }
+                statusTextProperty.set("")
             }
-        }
-        if (pagination.get()) {
-            changeFullText(stringBuilder.toString())
         } else {
-            this.codeArea.replaceText(stringBuilder.toString())
+            Thread {
+                val text = getFullText()
+                val textLength = text.length.toDouble()
+                val xmlOutput = StringWriter()
+                val xmlInput = ProgressReader(StringReader(text)) {
+                    Platform.runLater {
+                        fileProgressProperty.set(it / textLength)
+                    }
+                }
+                xmlFormattingService.uglyPrint(xmlInput, xmlOutput)
+                Platform.runLater {
+                    fileProgressProperty.set(-1.0)
+                    statusTextProperty.set("")
+                    if (displayMode.get() == DisplayMode.PAGINATION) {
+                        changeFullText(xmlOutput.toString())
+                    } else {
+                        codeArea.replaceText(xmlOutput.toString())
+                    }
+                }
+            }.start()
         }
+    }
+
+    private fun choseFile(): File? {
+        val fileChooser = FileChooser()
+        fileChooser.title = "Chose destination"
+        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath).absoluteFile
+        return fileChooser.showSaveDialog(FX.primaryStage)
     }
 
     private fun changeFullText(fullText: String) {
@@ -890,11 +1008,34 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         logger.info("Opening file ${file.absolutePath}")
         this.file = file
         setFileTitle(file)
-        if (this.settingsController.getSettings().pagination) {
+        codeArea.replaceText("")
+        fullText = ""
+        codeArea.isEditable = true
+        val settings = settingsController.getSettings()
+        if (settings.diskPagination && file.length() > settings.diskPaginationThreshold * 1024 * 1024) {
+            logger.info { "Opening file in disk pagination mode" }
+            displayMode.set(DisplayMode.DISK_PAGINATION)
+            moveToPage(1)
+            maxPage.set(calcMaxPage())
+            codeArea.isEditable = false
+        } else if (this.settingsController.getSettings().pagination) {
             this.fullText = file.readText()
-            this.dirtySinceLastSync = true
-            checkForPagination()
+            if (fullText.length > settingsController.getSettings().paginationThreshold) {
+                logger.info { "Opening file in pagination mode" }
+                displayMode.set(DisplayMode.PAGINATION)
+                dirtySinceLastSync = true
+                moveToPage(1, SyncDirection.TO_CODEAREA)
+                lineCount.bind(pageTotalLineCount)
+            } else {
+                logger.info { "Opening file in plain mode" }
+                displayMode.set(DisplayMode.PLAIN)
+                replaceText(file.readText())
+                lineCount.bind(codeArea.paragraphs.sizeProperty)
+            }
         } else {
+            logger.info { "Opening file in plain mode" }
+            displayMode.set(DisplayMode.PLAIN)
+            lineCount.bind(codeArea.paragraphs.sizeProperty)
             replaceText(file.readText())
         }
         this.codeArea.moveTo(0, 0)
@@ -924,17 +1065,20 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         codeArea.plainTextChanges().subscribe {
             this.charCountProperty.set(
-                    if (this.pagination.get()) {
-                        this.fullText.length - this.settingsController.getSettings().pageSize + this.codeArea.text.length
-                    } else {
-                        this.codeArea.text.length
+                    when {
+                        displayMode.get() == DisplayMode.PAGINATION -> this.fullText.length - this.settingsController.getSettings().pageSize + this.codeArea.text.length
+                        displayMode.get() == DisplayMode.DISK_PAGINATION -> {
+                            // TODO: Handle Disk pagination
+                            0
+                        }
+                        else -> this.codeArea.text.length
                     }
             )
             if (!this.textOperationLock) {
                 // Only dirty if user changed something
                 this.isDirty.set(true)
                 this.dirtySinceLastSync = true
-                if (this.pagination.get()) {
+                if (displayMode.get() == DisplayMode.PAGINATION) {
                     val insertedLines = this.stringUtils.countLinesInString(it.inserted) - 1
                     val removedLines = this.stringUtils.countLinesInString(it.removed) - 1
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
@@ -958,18 +1102,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         // Original: LineNumberFactory.get(codeArea)
         codeArea.paragraphGraphicFactory = PaginatedLineNumberFactory(codeArea) {
             // Needs to return the starting line count of the current page
-            if (this.pagination.get()) {
+            if (displayMode.get() == DisplayMode.PAGINATION) {
                 pageStartingLineCounts[this.page.get() - 1]
             } else {
                 0
-            }
+            } // TODO: Disk Pagination?
         }
 
         return codeArea
     }
 
     private fun getFullText(): String {
-        return if (this.pagination.get()) {
+        return if (displayMode.get() == DisplayMode.PAGINATION) {
             // fullText might be out of sync
             if (this.isDirty.get()) {
                 moveToPage(this.page.get()) // Syncs the page with the fulltext
@@ -993,8 +1137,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val fullText = getFullText()
         val searchText = getSearchText()
         val ignoreCase = ignoreCaseProperty.get()
-        val interpreterMode = this.textInterpreterMode.get() as TextInterpreterMode
-        if (interpreterMode == TextInterpreterMode.REGEX) {
+        val interpreterMode = this.textInterpreterMode.get() as SearchTextMode
+        if (interpreterMode == SearchTextMode.REGEX) {
             val patternString = if (ignoreCase) "(?i)$searchText" else searchText
             val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
             val matcher = pattern.matcher(fullText)
@@ -1022,7 +1166,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val pageSize = this.settingsController.getSettings().pageSize
         for (find in allFinds) {
             this.hasFindProperty.set(true)
-            if (this.pagination.get() && isInPage(find)) {
+            if (displayMode.get() == DisplayMode.PAGINATION && isInPage(find)) {
                 val start = max(find.start - ((this.page.get() - 1) * pageSize), 0)
                 val end = min(find.start - (this.page.get() * pageSize), pageSize - 1)
                 codeArea.setStyle(start, end, listOf("searchHighlight"))
@@ -1048,7 +1192,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             lastEndIndex = find.end
         }
         stringBuilder.append(fulltext.substring(lastEndIndex))
-        if (pagination.get()) {
+        if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
             changeFullText(stringBuilder.toString())
         } else {
             this.codeArea.replaceText(stringBuilder.toString())
@@ -1062,7 +1206,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun findNext() {
         // Find out where to start searching
-        val offset = if (pagination.get()) {
+        val offset = if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
             codeArea.caretPosition + (this.page.get() - 1) * this.settingsController.getSettings().pageSize
         } else {
             codeArea.caretPosition
@@ -1072,12 +1216,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val fullText = getFullText()
         val searchText = getSearchText()
         val ignoreCase = ignoreCaseProperty.get()
-        val interpreterMode = this.textInterpreterMode.get() as TextInterpreterMode
+        val interpreterMode = this.textInterpreterMode.get() as SearchTextMode
 
         // Search
         val find: Find? = if (this.searchDirection.get() as SearchDirection == SearchDirection.UP) {
             // UP
-            if (interpreterMode == TextInterpreterMode.REGEX) {
+            if (interpreterMode == SearchTextMode.REGEX) {
                 val patternString = if (ignoreCase) "(?i)$searchText" else searchText
                 val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
                 // End index of substring is exclusive, so no -1
@@ -1107,7 +1251,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
         } else {
             // DOWN
-            if (interpreterMode == TextInterpreterMode.REGEX) {
+            if (interpreterMode == SearchTextMode.REGEX) {
                 val patternString = if (ignoreCase) "(?i)$searchText" else searchText
                 val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
                 val matcher = pattern.matcher(fullText)
@@ -1150,7 +1294,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun getSearchText(): String {
-        return if (textInterpreterMode.get() as TextInterpreterMode == TextInterpreterMode.EXTENDED) {
+        return if (textInterpreterMode.get() as SearchTextMode == SearchTextMode.EXTENDED) {
             findProperty.get().replace("\\n", "\n")
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")
