@@ -670,12 +670,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.page.set(page)
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
             val file = getFile()
-            val destinationBuffer = CharArray(pageSize)
+            val destinationBuffer = ByteArray(pageSize)
             val offset = pageSize * (page - 1)
-            val inputStreamReader = file.inputStream().reader()
-            inputStreamReader.skip(offset.toLong())
-            inputStreamReader.read(destinationBuffer, 0, pageSize)
-            inputStreamReader.close()
+            val randomAccessFile = RandomAccessFile(file, "r")
+            randomAccessFile.seek(offset.toLong())
+            randomAccessFile.read(destinationBuffer, 0, pageSize)
+            randomAccessFile.close()
             replaceText(String(destinationBuffer))
         } else {
             replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
