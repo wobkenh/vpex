@@ -1,6 +1,8 @@
 package de.henningwobken.vpex.main.controllers
 
 import de.henningwobken.vpex.main.model.InternalResource
+import javafx.scene.control.Alert
+import javafx.scene.layout.Region
 import mu.KotlinLogging
 import tornadofx.*
 import java.io.File
@@ -31,8 +33,6 @@ class UpdateController : Controller() {
         }
 
     fun updateAvailable(): Boolean {
-        availableVersions = loadAvailableVersions()
-
         if (availableVersions.isEmpty()) {
             return false
         }
@@ -120,12 +120,19 @@ class UpdateController : Controller() {
         } else {
             url.openConnection()
         }
-        urlConnection.connect()
         return try {
+            logger.info { "Trying to connect" }
+            urlConnection.connect()
             urlConnection.getInputStream().bufferedReader().use { it.readText() }
                     .split("\n").filter(String::isNotEmpty)
         } catch (e: Exception) {
             logger.error("Could not find versions.txt. Assuming temporary connection outage", e)
+            val alert = Alert(Alert.AlertType.WARNING, "Could not contact server to check for available updates, error: \n\n" +
+                    e.javaClass.name + ": " + e.message + "\n\n" +
+                    "Please fix the connection (or disable auto update).")
+            alert.title = "Error resolving schema name/id"
+            alert.dialogPane.minHeight = Region.USE_PREF_SIZE
+            alert.showAndWait()
             listOf()
         }
     }

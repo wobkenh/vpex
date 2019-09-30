@@ -39,7 +39,10 @@ class SettingsController : Controller() {
         properties.setProperty("saveLock", settings.saveLock.toString())
         properties.setProperty("diskPagination", settings.diskPagination.toString())
         properties.setProperty("diskPaginationThreshold", settings.diskPaginationThreshold.toString())
+        properties.setProperty("trustStore", settings.trustStore)
+        properties.setProperty("trustStorePassword", settings.trustStorePassword)
         properties.store(configFile.outputStream(), "")
+        applySettings(settings)
     }
 
     private fun loadSettings(): Settings {
@@ -63,13 +66,16 @@ class SettingsController : Controller() {
                         properties.getProperty("pagination", "true") == "true",
                         properties.getProperty("pageSize", "1000000").toInt(),
                         properties.getProperty("paginationThreshold", "30000000").toInt(),
-                        properties.getProperty("autoUpdate", "true") == "true",
+                        properties.getProperty("autoUpdate", "false") == "true",
                         properties.getProperty("proxyHost", ""),
                         properties.getProperty("proxyPort", "").toIntOrNull(),
                         properties.getProperty("memoryIndicator", "false") == "true",
                         properties.getProperty("saveLock", "false") == "true",
                         properties.getProperty("diskPagination", "false") == "true",
-                        properties.getProperty("diskPaginationThreshold", "500").toInt()
+                        properties.getProperty("diskPaginationThreshold", "500").toInt(),
+                        properties.getProperty("trustStore", ""),
+                        properties.getProperty("trustStorePassword", "")
+
                 )
             } catch (e: Exception) {
                 logger.error { "Error while parsing settings." }
@@ -84,7 +90,15 @@ class SettingsController : Controller() {
             }
         }
         validateSettings(settings)
+        applySettings(settings)
         return settings
+    }
+
+    private fun applySettings(settings: Settings) {
+        if (settings.trustStore.isNotEmpty()) {
+            System.setProperty("javax.net.ssl.trustStore", settings.trustStore);
+            System.setProperty("javax.net.ssl.trustStorePassword", settings.trustStorePassword);
+        }
     }
 
     private fun getDefaultSettings(): Settings =
@@ -97,13 +111,15 @@ class SettingsController : Controller() {
                     true,
                     1000000,
                     30000000,
-                    true,
+                    false,
                     "",
                     null,
                     false,
                     false,
                     true,
-                    500
+                    500,
+                    "",
+                    ""
             )
 
 
@@ -117,6 +133,13 @@ class SettingsController : Controller() {
         if (!schemaBaseFile.exists() || !schemaBaseFile.isDirectory) {
             val errorMessage = "Schema base path ${schemaBaseFile.absolutePath} is not a directory or does not exist. Please replace it in the settings."
             showAlert(Alert.AlertType.ERROR, "Directory does not exist", errorMessage)
+        }
+        if (settings.trustStore.isNotEmpty()) {
+            val trustStoreFile = File(settings.schemaBasePath).absoluteFile
+            if (!trustStoreFile.exists() || !schemaBaseFile.isFile) {
+                val errorMessage = "Trust store location ${schemaBaseFile.absolutePath} is not a file or does not exist. Please replace it in the settings."
+                showAlert(Alert.AlertType.ERROR, "File does not exist", errorMessage)
+            }
         }
     }
 

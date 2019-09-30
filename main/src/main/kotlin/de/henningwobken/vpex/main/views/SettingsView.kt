@@ -34,6 +34,8 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val saveLockProperty = SimpleBooleanProperty()
     private val diskPaginationProperty = SimpleBooleanProperty()
     private val diskPaginationThresholdProperty = SimpleIntegerProperty()
+    private val trustStoreProperty = SimpleStringProperty()
+    private val trustStorePasswordProperty = SimpleStringProperty()
 
     init {
         val settings = settingsController.getSettings()
@@ -52,153 +54,178 @@ class SettingsView : View("VPEX - Einstellungen") {
         saveLockProperty.set(settings.saveLock)
         diskPaginationProperty.set(settings.diskPagination)
         diskPaginationThresholdProperty.set(settings.diskPaginationThreshold)
+        trustStoreProperty.set(settings.trustStore)
+        trustStorePasswordProperty.set(settings.trustStorePassword)
     }
 
     override val root = borderpane {
-        center = form {
-            paddingAll = 50
+        center = scrollpane {
+            form {
+                paddingAll = 50
 
-            fieldset("Appearance") {
-                field("Wrap text") {
-                    checkbox("", wrapProperty)
-                }
-                field("Number format") {
-                    combobox(localeProperty, listOf("de", "en", "fr")) {
-                        converter = object : StringConverter<String>() {
-                            override fun toString(languageTag: String): String {
-                                return Locale.forLanguageTag(languageTag).displayName
-                            }
+                fieldset("Appearance") {
+                    field("Wrap text") {
+                        checkbox("", wrapProperty)
+                    }
+                    field("Number format") {
+                        combobox(localeProperty, listOf("de", "en", "fr")) {
+                            converter = object : StringConverter<String>() {
+                                override fun toString(languageTag: String): String {
+                                    return Locale.forLanguageTag(languageTag).displayName
+                                }
 
-                            override fun fromString(displayName: String): String {
-                                return when (displayName) {
-                                    "English" -> Locale.ENGLISH.toLanguageTag()
-                                    "German" -> Locale.GERMAN.toLanguageTag()
-                                    "French" -> Locale.FRENCH.toLanguageTag()
-                                    else -> Locale.ENGLISH.toLanguageTag()
+                                override fun fromString(displayName: String): String {
+                                    return when (displayName) {
+                                        "English" -> Locale.ENGLISH.toLanguageTag()
+                                        "German" -> Locale.GERMAN.toLanguageTag()
+                                        "French" -> Locale.FRENCH.toLanguageTag()
+                                        else -> Locale.ENGLISH.toLanguageTag()
+                                    }
                                 }
                             }
                         }
                     }
+                    field("Memory Indicator") {
+                        checkbox("", memoryIndicatorProperty)
+                    }
                 }
-                field("Memory Indicator") {
-                    checkbox("", memoryIndicatorProperty)
-                }
-            }
-            fieldset("Files") {
-                field("Schema Root Location") {
-                    button("Change") {
-                        action {
-                            val directoryChooser = DirectoryChooser()
-                            directoryChooser.title = "Schema Base Path"
-                            val file = directoryChooser.showDialog(FX.primaryStage)
-                            if (file != null) {
-                                schemaBasePathProperty.set(file.absolutePath)
+                fieldset("Files") {
+                    field("Schema Root Location") {
+                        button("Change") {
+                            action {
+                                val directoryChooser = DirectoryChooser()
+                                directoryChooser.title = "Schema Base Path"
+                                val file = directoryChooser.showDialog(FX.primaryStage)
+                                if (file != null) {
+                                    schemaBasePathProperty.set(file.absolutePath)
+                                }
                             }
                         }
+                        label(schemaBasePathProperty)
                     }
-                    label(schemaBasePathProperty)
-                }
-                field("File Opener Start Location") {
-                    button("Change") {
-                        action {
-                            val directoryChooser = DirectoryChooser()
-                            directoryChooser.title = "File Opener Base Path"
-                            val file = directoryChooser.showDialog(FX.primaryStage)
-                            if (file != null) {
-                                openerBasePathProperty.set(file.absolutePath)
+                    field("File Opener Start Location") {
+                        button("Change") {
+                            action {
+                                val directoryChooser = DirectoryChooser()
+                                directoryChooser.title = "File Opener Base Path"
+                                val file = directoryChooser.showDialog(FX.primaryStage)
+                                if (file != null) {
+                                    openerBasePathProperty.set(file.absolutePath)
+                                }
                             }
                         }
+                        label(openerBasePathProperty)
                     }
-                    label(openerBasePathProperty)
-                }
-                field("Lock save operations") {
-                    tooltip("When save lock is activated, you will not be able to overwrite the file currently open. (Save as is still possible)")
-                    checkbox("Disables 'save' in favor of 'save as'", saveLockProperty)
-                }
-            }
-            fieldset("Transformation") {
-                field("Pretty print indent") {
-                    textfield(prettyPrintIndentProperty) {
-                        prefWidth = 200.0
-                        maxWidth = 200.0
+                    field("Lock save operations") {
+                        tooltip("When save lock is activated, you will not be able to overwrite the file currently open. (Save as is still possible)")
+                        checkbox("Disables 'save' in favor of 'save as'", saveLockProperty)
                     }
                 }
-            }
-            fieldset("Pagination") {
-                field("Paginate large files") {
-                    checkbox("", paginationProperty)
-                }
-                field("Page size") {
-                    tooltip("Number of characters per page")
-                    textfield(pageSizeProperty) {
-                        prefWidth = 200.0
-                        maxWidth = 200.0
+                fieldset("Transformation") {
+                    field("Pretty print indent") {
+                        textfield(prettyPrintIndentProperty) {
+                            prefWidth = 200.0
+                            maxWidth = 200.0
+                        }
                     }
                 }
-                field("Pagination threshold") {
-                    tooltip("Minimum number of characters to activate pagination")
-                    textfield(paginationThresholdProperty) {
-                        prefWidth = 200.0
-                        maxWidth = 200.0
+                fieldset("Pagination") {
+                    field("Paginate large files") {
+                        checkbox("", paginationProperty)
+                    }
+                    field("Page size") {
+                        tooltip("Number of characters per page")
+                        textfield(pageSizeProperty) {
+                            prefWidth = 200.0
+                            maxWidth = 200.0
+                        }
+                    }
+                    field("Pagination threshold") {
+                        tooltip("Minimum number of characters to activate pagination")
+                        textfield(paginationThresholdProperty) {
+                            prefWidth = 200.0
+                            maxWidth = 200.0
+                        }
                     }
                 }
-            }
-            fieldset("Paginate from disk mode") {
-                label("Context: Very large files can't be kept in memory. This mode always reads from disk.")
-                field("Paginate from disk") {
-                    checkbox("", diskPaginationProperty)
-                }
-                field("Paginate from disk threshold") {
-                    tooltip("Minimum filesize to activate paginate from disk")
-                    textfield(diskPaginationThresholdProperty) {
-                        prefWidth = 100.0
-                        maxWidth = 100.0
+                fieldset("Paginate from disk mode") {
+                    label("Context: Very large files can't be kept in memory. This mode always reads from disk.")
+                    field("Paginate from disk") {
+                        checkbox("", diskPaginationProperty)
                     }
-                    label("MB")
-                }
-            }
-            fieldset("Updates") {
-                field("Check for updates at startup") {
-                    checkbox("", autoUpdateProperty)
-                }
-                field("Proxy") {
-                    textfield(proxyHostProperty) {
-                        prefWidth = 200.0
-                        maxWidth = 200.0
-                    }
-                    textfield(proxyPortProperty) {
-                        prefWidth = 50.0
-                        maxWidth = 50.0
+                    field("Paginate from disk threshold") {
+                        tooltip("Minimum filesize to activate paginate from disk")
+                        textfield(diskPaginationThresholdProperty) {
+                            prefWidth = 100.0
+                            maxWidth = 100.0
+                        }
+                        label("MB")
                     }
                 }
-                field("Version") {
-                    label(updateController.currentVersion)
-                }
-                field("Available Versions") {
-                    combobox(targetVersionProperty, updateController.availableVersions)
-                    button("Change Version").action {
-                        progressProperty.set(0.0)
-                        updateController.downloadUpdate({ progress, max ->
-                            Platform.runLater {
-                                progressProperty.set(progress / (max * 1.0))
+                fieldset("Updates") {
+                    field("Check for updates at startup") {
+                        checkbox("", autoUpdateProperty)
+                    }
+                    field("Proxy") {
+                        textfield(proxyHostProperty) {
+                            prefWidth = 200.0
+                            maxWidth = 200.0
+                        }
+                        textfield(proxyPortProperty) {
+                            prefWidth = 50.0
+                            maxWidth = 50.0
+                        }
+                    }
+                    field("Truststore") {
+                        button("Change") {
+                            action {
+                                val directoryChooser = DirectoryChooser()
+                                directoryChooser.title = "Truststore file"
+                                val file = directoryChooser.showDialog(FX.primaryStage)
+                                if (file != null) {
+                                    trustStoreProperty.set(file.absolutePath)
+                                }
                             }
-                        }, {
-                            Platform.runLater {
-                                progressProperty.set(-1.0)
-                                updateController.applyUpdate()
-                            }
-                        }, targetVersionProperty.get())
+                        }
+                        label(trustStoreProperty)
                     }
-                }
-                field("Progress") {
-                    removeWhen(progressProperty.lessThan(0))
-                    progressbar(progressProperty) {
+                    field("Truststore password") {
+                        passwordfield(trustStorePasswordProperty) {
+                            prefWidth = 200.0
+                            maxWidth = 200.0
+                        }
+                    }
+                    field("Version") {
+                        label(updateController.currentVersion)
+                    }
+                    field("Available Versions") {
+                        combobox(targetVersionProperty, updateController.availableVersions)
+                        button("Change Version").action {
+                            progressProperty.set(0.0)
+                            updateController.downloadUpdate({ progress, max ->
+                                Platform.runLater {
+                                    progressProperty.set(progress / (max * 1.0))
+                                }
+                            }, {
+                                Platform.runLater {
+                                    progressProperty.set(-1.0)
+                                    updateController.applyUpdate()
+                                }
+                            }, targetVersionProperty.get())
+                        }
+                    }
+                    field("Progress") {
+                        removeWhen(progressProperty.lessThan(0))
+                        progressbar(progressProperty) {
+                        }
                     }
                 }
             }
         }
+
         bottom = hbox(50) {
-            paddingAll = 50
+            paddingLeft = 50
+            paddingVertical = 30
             button("Cancel").action {
                 backToMainScreen()
             }
@@ -224,7 +251,9 @@ class SettingsView : View("VPEX - Einstellungen") {
                 memoryIndicatorProperty.get(),
                 saveLockProperty.get(),
                 diskPaginationProperty.get(),
-                diskPaginationThresholdProperty.get()
+                diskPaginationThresholdProperty.get(),
+                trustStoreProperty.get(),
+                trustStorePasswordProperty.get()
         )
         settingsController.saveSettings(settings)
         backToMainScreen()
