@@ -94,7 +94,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val ignoreCaseProperty = SimpleBooleanProperty(false)
 
     // Pagination
-    private val displayMode = SimpleObjectProperty<DisplayMode>()
+    private val displayMode = SimpleObjectProperty<DisplayMode>(DisplayMode.PLAIN)
     private var fullText: String = ""
     private val page = SimpleIntegerProperty(1)
     private val pageDisplayProperty = SimpleIntegerProperty(1)
