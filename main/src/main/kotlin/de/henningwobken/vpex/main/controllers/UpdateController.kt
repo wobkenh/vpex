@@ -1,6 +1,7 @@
 package de.henningwobken.vpex.main.controllers
 
 import de.henningwobken.vpex.main.model.InternalResource
+import javafx.application.Platform
 import javafx.scene.control.Alert
 import javafx.scene.layout.Region
 import mu.KotlinLogging
@@ -106,33 +107,41 @@ class UpdateController : Controller() {
 
     private fun getUrlConnection(url: String): URLConnection {
         val urlObject = URL(url)
-        return if (settingsController.getSettings().hasProxy()) {
+        val connection = if (settingsController.getSettings().hasProxy()) {
             urlObject.openConnection(settingsController.getSettings().getProxy())
         } else {
             urlObject.openConnection()
         }
+        connection.connectTimeout = 10000
+        return connection
     }
 
     private fun loadAvailableVersions(): List<String> {
-        val url = URL("$url/versions.txt")
-        val urlConnection = if (settingsController.getSettings().hasProxy()) {
-            url.openConnection(settingsController.getSettings().getProxy())
-        } else {
-            url.openConnection()
-        }
+        val urlConnection = getUrlConnection("$url/versions.txt")
         return try {
             logger.info { "Trying to connect" }
             urlConnection.connect()
             urlConnection.getInputStream().bufferedReader().use { it.readText() }
                     .split("\n").filter(String::isNotEmpty)
         } catch (e: Exception) {
-            logger.error("Could not find versions.txt. Assuming temporary connection outage", e)
-            val alert = Alert(Alert.AlertType.WARNING, "Could not contact server to check for available updates, error: \n\n" +
-                    e.javaClass.name + ": " + e.message + "\n\n" +
-                    "Please fix the connection (or disable auto update).")
-            alert.title = "Error resolving schema name/id"
-            alert.dialogPane.minHeight = Region.USE_PREF_SIZE
-            alert.showAndWait()
+            Platform.runLater {
+                logger.error("Could not find versions.txt. Assuming temporary connection outage", e)
+                val alert = Alert(Alert.AlertType.WARNING, """
+                    Could not contact server to check for available updates, error:
+                    
+                    ${e.javaClass.name}: ${e.message}
+                        
+                    Please verify that your proxy settings are correct and test if your connection is working.
+                    If your connection is working correctly, then there might be a server outage, in which case:
+                    I'm sorry for the inconvenience! Please contact me at henning.wobken@simplex24.de to let me know.
+                    Thanks.
+                    
+                    In the meanwhile, you can continue using vpex. This error only impacts auto-update.
+                    """.trimIndent())
+                alert.title = "Auto update check failed"
+                alert.dialogPane.minHeight = Region.USE_PREF_SIZE
+                alert.showAndWait()
+            }
             listOf()
         }
     }

@@ -102,29 +102,35 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         internalResourceController.getAsStrings(InternalResource.BANNER).forEach(::println)
         if (settingsController.getSettings().autoUpdate) {
             statusTextProperty.set("Checking for updates")
-            logger.info { "Checking for updates" }
-            if (updateController.updateAvailable()) {
-                logger.info { "Update available. Downloading." }
-                statusTextProperty.set("Downloading updates")
-                downloadProgressProperty.set(0.0)
-                updateController.downloadUpdate(progressCallback = { progress, max ->
+            Thread {
+                logger.info { "Checking for updates" }
+                if (updateController.updateAvailable()) {
+                    logger.info { "Update available. Downloading." }
                     Platform.runLater {
-                        downloadProgressProperty.set(progress / (max * 1.0))
+                        statusTextProperty.set("Downloading updates")
+                        downloadProgressProperty.set(0.0)
                     }
-                }, finishCallback = {
+                    updateController.downloadUpdate(progressCallback = { progress, max ->
+                        Platform.runLater {
+                            downloadProgressProperty.set(progress / (max * 1.0))
+                        }
+                    }, finishCallback = {
+                        Platform.runLater {
+                            logger.info { "Download finished." }
+                            downloadProgressProperty.set(-1.0)
+                            statusTextProperty.set("")
+                            confirm("New Version", "A new version has been downloaded. Restart?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
+                                updateController.applyUpdate()
+                            })
+                        }
+                    })
+                } else {
+                    logger.info { "Up to date." }
                     Platform.runLater {
-                        logger.info { "Download finished." }
-                        downloadProgressProperty.set(-1.0)
                         statusTextProperty.set("")
-                        confirm("New Version", "A new version has been downloaded. Restart?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
-                            updateController.applyUpdate()
-                        })
                     }
-                })
-            } else {
-                logger.info { "Up to date." }
-                statusTextProperty.set("")
-            }
+                }
+            }.start()
         }
         FX.primaryStage.setOnCloseRequest {
             if (memoryMonitorThread != null) {
