@@ -728,6 +728,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 moveToLineColumn(line, column)
             } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
                 // TODO: Read next page from file
+                throw UnsupportedOperationException("Not yet implemented")
             } else {
                 val line = max(min(userLine, codeArea.paragraphs.size), 1) - 1
                 val column = min(userColumn, codeArea.getParagraph(line).length())
@@ -736,23 +737,20 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
     }
 
-    private fun moveToIndex(index: Int) {
+    private fun moveToIndex(index: Long) {
         when {
-            displayMode.get() == DisplayMode.PAGINATION -> {
+            displayMode.get() == DisplayMode.PAGINATION -> moveToLineColumn(0, index.toInt())
+            else -> {
                 val page = getPageOfIndex(index)
                 if (page != this.page.get()) {
                     moveToPage(page)
                 }
-                this.moveToLineColumn(0, index - ((this.page.get() - 1) * this.settingsController.getSettings().pageSize))
+                this.moveToLineColumn(0, (index - ((this.page.get() - 1) * this.settingsController.getSettings().pageSize)).toInt())
             }
-            displayMode.get() == DisplayMode.DISK_PAGINATION -> {
-                // TODO: Handle Disk Pagination
-            }
-            else -> moveToLineColumn(0, index)
         }
     }
 
-    private fun getPageOfIndex(index: Int): Int {
+    private fun getPageOfIndex(index: Long): Int {
         return ceil(index / this.settingsController.getSettings().pageSize.toDouble()).toInt()
     }
 
@@ -1142,12 +1140,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
             val matcher = pattern.matcher(fullText)
             while (matcher.find()) {
-                this.allFinds.add(Find(matcher.start(), matcher.end()))
+                this.allFinds.add(Find(matcher.start().toLong(), matcher.end().toLong()))
             }
         } else {
             var index = fullText.indexOf(searchText, 0, ignoreCase)
             while (index < fullText.length && index >= 0) {
-                this.allFinds.add(Find(index, index + searchText.length))
+                this.allFinds.add(Find(index.toLong(), (index + searchText.length).toLong()))
                 index = fullText.indexOf(searchText, index + 1, ignoreCase)
             }
         }
@@ -1160,17 +1158,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             return
         }
         moveToIndex(allFinds[0].start)
-        lastFindStart = allFinds[0].start
-        lastFindEnd = allFinds[0].end
+        lastFindStart = codeArea.anchor
+        val findLength = allFinds[0].end - allFinds[0].start
+        val findEnd = codeArea.anchor + findLength.toInt()
+        lastFindEnd = findEnd
         val pageSize = this.settingsController.getSettings().pageSize
         for (find in allFinds) {
             this.hasFindProperty.set(true)
             if (displayMode.get() == DisplayMode.PAGINATION && isInPage(find)) {
-                val start = max(find.start - ((this.page.get() - 1) * pageSize), 0)
-                val end = min(find.start - (this.page.get() * pageSize), pageSize - 1)
+                val start = max(find.start - ((this.page.get() - 1) * pageSize), 0).toInt()
+                val end = min(find.start - (this.page.get() * pageSize), pageSize.toLong() - 1).toInt()
                 codeArea.setStyle(start, end, listOf("searchHighlight"))
             } else {
-                codeArea.setStyle(find.start, find.end, listOf("searchHighlight"))
+                codeArea.setStyle(find.start.toInt(), find.end.toInt(), listOf("searchHighlight"))
             }
         }
     }
@@ -1186,9 +1186,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val replacementText = this.replaceProperty.get()
         var lastEndIndex = 0
         for (find in allFinds) {
-            stringBuilder.append(fulltext.substring(lastEndIndex, find.start))
+            stringBuilder.append(fulltext.substring(lastEndIndex, find.start.toInt()))
             stringBuilder.append(replacementText)
-            lastEndIndex = find.end
+            lastEndIndex = find.end.toInt()
         }
         stringBuilder.append(fulltext.substring(lastEndIndex))
         if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
@@ -1240,15 +1240,17 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             while (true) {
                 file.seek(fileOffset - pageOverlap)
                 val read = file.read(buffer)
-                fileOffset += read
                 if (read == -1) {
                     break;
                 }
-                tmpFind = searchAndReplaceController.findNext(String(buffer, 0, read), searchText, offset + skipLastFindOffset,
+                tmpFind = searchAndReplaceController.findNext(String(buffer, 0, read), searchText, 0,
                         searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
                 if (tmpFind != null) {
+                    val cursorPosition = fileOffset - pageOverlap
+                    tmpFind = Find(tmpFind.start + cursorPosition, tmpFind.end + cursorPosition)
                     break
                 }
+                fileOffset += read
             }
             tmpFind
 
@@ -1264,7 +1266,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             Platform.runLater {
                 val findStart = codeArea.anchor
                 val findLength = find.end - find.start
-                val findEnd = codeArea.anchor + findLength
+                val findEnd = codeArea.anchor + findLength.toInt()
                 codeArea.clearStyle(lastFindStart, lastFindEnd)
                 codeArea.setStyle(findStart, findEnd, listOf("searchHighlight"))
                 lastFindStart = findStart

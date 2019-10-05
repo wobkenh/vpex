@@ -14,10 +14,11 @@ class SearchAndReplaceController : Controller() {
      * Finds the next occurence of searchText in the fullText.
      *
      * @param searchDirection In which direction to start searching
-     * @param searchTextMode
-     * @param fullText
-     * @param searchText
-
+     * @param searchTextMode whether to interprete the searchterm as regex or plain
+     * @param fullText text to search in
+     * @param searchText text to search for or regex describing it
+     * @return Find object with start and end index of find.
+     *         The start and end index relate to the full text that was given.
      */
     fun findNext(fullText: String,
                  searchText: String,
@@ -49,7 +50,7 @@ class SearchAndReplaceController : Controller() {
                         break
                     }
                 }
-                if (regexStartIndex >= 0) Find(regexStartIndex, regexEndIndex) else null
+                if (regexStartIndex >= 0) Find(regexStartIndex.toLong(), regexEndIndex.toLong()) else null
             } else {
 
                 // UP NORMAL/EXTENDED
@@ -57,7 +58,7 @@ class SearchAndReplaceController : Controller() {
                 // - 1 to exclude current search result
                 val startIndex = fullText.lastIndexOf(searchText, offset, ignoreCase)
                 if (startIndex >= 0) {
-                    Find(startIndex, startIndex + searchText.length)
+                    Find(startIndex.toLong(), startIndex + searchText.length.toLong())
                 } else null
             }
         } else {
@@ -69,18 +70,15 @@ class SearchAndReplaceController : Controller() {
                 val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
                 val matcher = pattern.matcher(fullText)
                 if (matcher.find(offset)) {
-                    Find(matcher.start(), matcher.end())
+                    Find(matcher.start().toLong(), matcher.end().toLong())
                 } else null
             } else {
 
                 // DOWN NORMAL/EXTENDED
 
-                // + 1 to exclude current search result
-                // TODO: This does not work if the work if the search term is next to the cursor
-                //          and there hasn't been a find yet
                 val startIndex = fullText.indexOf(searchText, offset, ignoreCase)
                 if (startIndex >= 0) {
-                    Find(startIndex, startIndex + searchText.length)
+                    Find(startIndex.toLong(), (startIndex + searchText.length).toLong())
                 } else null
             }
         }
