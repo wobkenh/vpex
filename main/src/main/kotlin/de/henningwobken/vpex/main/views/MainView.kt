@@ -1,14 +1,8 @@
 package de.henningwobken.vpex.main.views
 
 import de.henningwobken.vpex.main.Styles
-import de.henningwobken.vpex.main.controllers.InternalResourceController
-import de.henningwobken.vpex.main.controllers.SettingsController
-import de.henningwobken.vpex.main.controllers.StringUtils
-import de.henningwobken.vpex.main.controllers.UpdateController
-import de.henningwobken.vpex.main.model.DisplayMode
-import de.henningwobken.vpex.main.model.InternalResource
-import de.henningwobken.vpex.main.model.SearchDirection
-import de.henningwobken.vpex.main.model.SearchTextMode
+import de.henningwobken.vpex.main.controllers.*
+import de.henningwobken.vpex.main.model.*
 import de.henningwobken.vpex.main.xml.*
 import javafx.application.Platform
 import javafx.beans.property.*
@@ -55,6 +49,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val updateController: UpdateController by inject()
     private val stringUtils: StringUtils by inject()
     private val xmlFormattingService: XmlFormattingService by inject()
+    private val searchAndReplaceController by inject<SearchAndReplaceController>()
 
     private var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
@@ -76,8 +71,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val showMonitorThread = SimpleBooleanProperty(false)
 
     // Search and Replace
-
-    private data class Find(val start: Int, val end: Int)
 
     private val showReplaceProperty = SimpleBooleanProperty(false)
     private val showFindProperty = SimpleBooleanProperty(false)
@@ -1206,67 +1199,57 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun findNext() {
         // Find out where to start searching
-        val offset = if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
-            codeArea.caretPosition + (this.page.get() - 1) * this.settingsController.getSettings().pageSize
-        } else {
+        val offset = if (displayMode.get() == DisplayMode.PLAIN) {
             codeArea.caretPosition
+        } else {
+            codeArea.caretPosition + (this.page.get() - 1) * this.settingsController.getSettings().pageSize
         }
 
+        // Optional offset which prevents us from finding the last find again by skipping the first character
+        val searchDirection = searchDirection.get() as SearchDirection
+        val skipLastFindOffset = if (lastFindEnd > 0) {
+            if (searchDirection == SearchDirection.UP) {
+                -1
+            } else {
+                1
+            }
+        } else 0
+
         // Find text to search in and text to search for
-        val fullText = getFullText()
         val searchText = getSearchText()
         val ignoreCase = ignoreCaseProperty.get()
-        val interpreterMode = this.textInterpreterMode.get() as SearchTextMode
 
         // Search
-        val find: Find? = if (this.searchDirection.get() as SearchDirection == SearchDirection.UP) {
-            // UP
-            if (interpreterMode == SearchTextMode.REGEX) {
-                val patternString = if (ignoreCase) "(?i)$searchText" else searchText
-                val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
-                // End index of substring is exclusive, so no -1
-                val matcher = pattern.matcher(fullText)
-                var regexStartIndex = -1
-                var regexEndIndex = -1
-                // TODO: This goes through all the matches. This is inefficient.
-                while (true) {
-                    try {
-                        val found = matcher.find()
-                        if (!found || matcher.end() > offset) {
-                            break
-                        }
-                        regexStartIndex = matcher.start()
-                        regexEndIndex = matcher.end()
-                    } catch (e: Exception) {
-                        break
-                    }
+        val find: Find? = if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            // We can't load full text into memory
+            // therefore, we have to go page by page
+            // this means that page breaks might hide/split search results
+            // to counter this, a pageOverlap is introduced which will cause the searches to overlap
+            val pageOverlap = max(100, searchText.length)
+            // We dont want page overlap on our first search. Add it here so it gets substracted in the iteration
+            var fileOffset = (offset + skipLastFindOffset).toLong() + pageOverlap
+            val file = RandomAccessFile(file, "r")
+            val buffer = ByteArray(this.settingsController.getSettings().pageSize)
+            var tmpFind: Find? = null
+            while (true) {
+                file.seek(fileOffset - pageOverlap)
+                val read = file.read(buffer)
+                fileOffset += read
+                if (read == -1) {
+                    break;
                 }
-                if (regexStartIndex >= 0) Find(regexStartIndex, regexEndIndex) else null
-            } else {
-                // - 1 to exclude current search result
-                val startIndex = fullText.lastIndexOf(searchText, offset - 1, ignoreCase)
-                if (startIndex >= 0) {
-                    Find(startIndex, startIndex + searchText.length)
-                } else null
+                tmpFind = searchAndReplaceController.findNext(String(buffer, 0, read), searchText, offset + skipLastFindOffset,
+                        searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
+                if (tmpFind != null) {
+                    break
+                }
             }
+            tmpFind
+
         } else {
-            // DOWN
-            if (interpreterMode == SearchTextMode.REGEX) {
-                val patternString = if (ignoreCase) "(?i)$searchText" else searchText
-                val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
-                val matcher = pattern.matcher(fullText)
-                if (matcher.find(offset + 1)) {
-                    Find(matcher.start(), matcher.end())
-                } else null
-            } else {
-                // + 1 to exclude current search result
-                // TODO: This does not work if the work if the search term is next to the cursor
-                //          and there hasn't been a find yet
-                val startIndex = fullText.indexOf(searchText, offset + 1, ignoreCase)
-                if (startIndex >= 0) {
-                    Find(startIndex, startIndex + searchText.length)
-                } else null
-            }
+            val fullText = getFullText()
+            searchAndReplaceController.findNext(fullText, searchText, offset + skipLastFindOffset,
+                    searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
         }
 
         // Move to search result
