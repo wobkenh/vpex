@@ -27,7 +27,6 @@ import tornadofx.*
 import java.io.*
 import java.nio.file.Files
 import java.text.NumberFormat
-import java.util.regex.Pattern
 import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
 import javax.xml.transform.OutputKeys
@@ -83,7 +82,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val hasFindProperty = SimpleBooleanProperty(false)
     private val searchDirection = SimpleObjectProperty<Any>()
     private val textInterpreterMode = SimpleObjectProperty<Any>()
-    private val regexPatternMap = mutableMapOf<String, Pattern>()
     private val ignoreCaseProperty = SimpleBooleanProperty(false)
 
     // Pagination
@@ -1129,26 +1127,42 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.lastFindEnd = 0
     }
 
-    private fun searchAll() {
-        this.allFinds.clear()
-        val fullText = getFullText()
+    private fun searchAll(callback: (List<Find>) -> Unit) {
+        allFinds.clear()
+
         val searchText = getSearchText()
+        val interpreterMode = textInterpreterMode.get() as SearchTextMode
         val ignoreCase = ignoreCaseProperty.get()
-        val interpreterMode = this.textInterpreterMode.get() as SearchTextMode
-        if (interpreterMode == SearchTextMode.REGEX) {
-            val patternString = if (ignoreCase) "(?i)$searchText" else searchText
-            val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
-            val matcher = pattern.matcher(fullText)
-            while (matcher.find()) {
-                this.allFinds.add(Find(matcher.start().toLong(), matcher.end().toLong()))
+
+        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            // We can't load full text into memory
+            // therefore, we have to go page by page
+            // this means that page breaks might hide/split search results
+            // to counter this, a pageOverlap is introduced which will cause the searches to overlap
+            val pageOverlap = max(100, searchText.length)
+            // We dont want page overlap on our first search. Add it here so it gets substracted in the iteration
+            var fileOffset = pageOverlap.toLong()
+            val file = RandomAccessFile(file, "r")
+            val buffer = ByteArray(this.settingsController.getSettings().pageSize)
+            while (true) {
+                val cursorPosition = fileOffset - pageOverlap
+                file.seek(cursorPosition)
+                val read = file.read(buffer)
+                if (read == -1) {
+                    break;
+                }
+                val finds = searchAndReplaceController.findAll(String(buffer, 0, read), searchText, interpreterMode, ignoreCase)
+                        .map { find -> Find(find.start + cursorPosition, find.end + cursorPosition) }
+                allFinds.addAll(finds)
+                callback(finds)
+                fileOffset += read
             }
         } else {
-            var index = fullText.indexOf(searchText, 0, ignoreCase)
-            while (index < fullText.length && index >= 0) {
-                this.allFinds.add(Find(index.toLong(), (index + searchText.length).toLong()))
-                index = fullText.indexOf(searchText, index + 1, ignoreCase)
-            }
+            val fullText = getFullText()
+            allFinds.addAll(searchAndReplaceController.findAll(fullText, searchText, interpreterMode, ignoreCase))
         }
+
+
         allFindsSize.set(allFinds.size)
     }
 
