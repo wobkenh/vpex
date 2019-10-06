@@ -10,13 +10,46 @@ class SearchAndReplaceController : Controller() {
 
     private val regexPatternMap = mutableMapOf<String, Pattern>()
 
+
+    /**
+     * Finds all of the occurences of searchText in the fullText
+     *
+     * @param fullText text to search in
+     * @param searchText text to search for or regex describing it
+     * @param searchTextMode whether to interpret the search term as regex or plain
+     * @param ignoreCase whether to do a case sensitive or case insensitive search
+     * @return list of all finds
+     */
+    fun findAll(fullText: String,
+                searchText: String,
+                searchTextMode: SearchTextMode = SearchTextMode.NORMAL,
+                ignoreCase: Boolean = false): List<Find> {
+        val allFinds = mutableListOf<Find>()
+        if (searchTextMode == SearchTextMode.REGEX) {
+            val patternString = if (ignoreCase) "(?i)$searchText" else searchText
+            val pattern = regexPatternMap.getOrPut(patternString) { Pattern.compile(patternString) }
+            val matcher = pattern.matcher(fullText)
+            while (matcher.find()) {
+                allFinds.add(Find(matcher.start().toLong(), matcher.end().toLong()))
+            }
+        } else {
+            var index = fullText.indexOf(searchText, 0, ignoreCase)
+            while (index < fullText.length && index >= 0) {
+                allFinds.add(Find(index.toLong(), (index + searchText.length).toLong()))
+                index = fullText.indexOf(searchText, index + 1, ignoreCase)
+            }
+        }
+        return allFinds
+    }
+
     /**
      * Finds the next occurence of searchText in the fullText.
      *
      * @param searchDirection In which direction to start searching
-     * @param searchTextMode whether to interprete the searchterm as regex or plain
+     * @param searchTextMode whether to interpret the search term as regex or plain
      * @param fullText text to search in
      * @param searchText text to search for or regex describing it
+     * @param ignoreCase whether to do a case sensitive or case insensitive search
      * @return Find object with start and end index of find.
      *         The start and end index relate to the full text that was given.
      */

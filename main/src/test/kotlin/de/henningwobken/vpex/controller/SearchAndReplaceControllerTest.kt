@@ -1,6 +1,7 @@
 package de.henningwobken.vpex.controller
 
 import de.henningwobken.vpex.main.controllers.SearchAndReplaceController
+import de.henningwobken.vpex.main.model.Find
 import de.henningwobken.vpex.main.model.SearchDirection
 import de.henningwobken.vpex.main.model.SearchTextMode
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -108,6 +109,36 @@ class SearchAndReplaceControllerTest {
         find!!
         assertEquals(find.start, 262)
         assertEquals(find.end, 271)
+    }
+
+    @Test
+    fun `find all plain`() {
+        val textMode = SearchTextMode.NORMAL
+        val ignoreCase = false
+        val finds = searchAndReplaceController.findAll(fullText, "price", textMode, ignoreCase)
+        assertEquals(4, finds.size)
+        assertEquals(Find(466, 471), finds[0])
+        assertEquals(Find(479, 484), finds[1])
+        assertEquals(Find(572, 577), finds[2])
+        assertEquals(Find(584, 589), finds[3])
+
+        val noFinds = searchAndReplaceController.findAll(fullText, "banana", textMode, ignoreCase)
+        assertEquals(noFinds.size, 0)
+
+        val noFinds2 = searchAndReplaceController.findAll(fullText, "PRICE", textMode, ignoreCase)
+        assertEquals(noFinds2.size, 0)
+    }
+
+    @Test
+    fun `find all ignore case`() {
+        val textMode = SearchTextMode.NORMAL
+        val ignoreCase = true
+        val finds = searchAndReplaceController.findAll(fullText, "PRICE", textMode, ignoreCase)
+        assertEquals(4, finds.size)
+        assertEquals(Find(466, 471), finds[0])
+        assertEquals(Find(479, 484), finds[1])
+        assertEquals(Find(572, 577), finds[2])
+        assertEquals(Find(584, 589), finds[3])
     }
 
 }
