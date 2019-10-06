@@ -25,6 +25,12 @@
             <artifactId>FranzXaver</artifactId>
             <version>0.1</version>
         </dependency>
+        <!-- TODO: Regex CharSequence? Remove if not needed -->
+        <dependency>
+            <groupId>com.github.fge</groupId>
+            <artifactId>largetext</artifactId>
+            <version>0.1.0</version>
+        </dependency>
 
     </dependencies>
 
