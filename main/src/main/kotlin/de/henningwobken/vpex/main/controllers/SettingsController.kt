@@ -135,9 +135,9 @@ class SettingsController : Controller() {
             showAlert(Alert.AlertType.ERROR, "Directory does not exist", errorMessage)
         }
         if (settings.trustStore.isNotEmpty()) {
-            val trustStoreFile = File(settings.schemaBasePath).absoluteFile
-            if (!trustStoreFile.exists() || !schemaBaseFile.isFile) {
-                val errorMessage = "Trust store location ${schemaBaseFile.absolutePath} is not a file or does not exist. Please replace it in the settings."
+            val trustStoreFile = File(settings.trustStore).absoluteFile
+            if (!trustStoreFile.exists() || !trustStoreFile.isFile) {
+                val errorMessage = "Trust store location ${trustStoreFile.absolutePath} is not a file or does not exist. Please replace it in the settings."
                 showAlert(Alert.AlertType.ERROR, "File does not exist", errorMessage)
             }
         }

@@ -9,6 +9,7 @@ import javafx.beans.property.SimpleDoubleProperty
 import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleStringProperty
 import javafx.stage.DirectoryChooser
+import javafx.stage.FileChooser
 import javafx.util.Duration
 import javafx.util.StringConverter
 import tornadofx.*
@@ -179,12 +180,17 @@ class SettingsView : View("VPEX - Einstellungen") {
                     field("Truststore") {
                         button("Change") {
                             action {
-                                val directoryChooser = DirectoryChooser()
-                                directoryChooser.title = "Truststore file"
-                                val file = directoryChooser.showDialog(FX.primaryStage)
+                                val fileChooser = FileChooser()
+                                fileChooser.title = "Truststore file"
+                                val file = fileChooser.showOpenDialog(FX.primaryStage)
                                 if (file != null) {
                                     trustStoreProperty.set(file.absolutePath)
                                 }
+                            }
+                        }
+                        button("Delete") {
+                            action {
+                                trustStoreProperty.set("")
                             }
                         }
                         label(trustStoreProperty)

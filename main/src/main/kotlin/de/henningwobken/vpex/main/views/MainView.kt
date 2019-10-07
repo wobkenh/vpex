@@ -746,13 +746,38 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun moveToIndex(index: Long) {
         when {
-            displayMode.get() == DisplayMode.PAGINATION -> moveToLineColumn(0, index.toInt())
+            displayMode.get() == DisplayMode.PLAIN -> moveToLineColumn(0, index.toInt())
             else -> {
                 val page = getPageOfIndex(index)
                 if (page != this.page.get()) {
                     moveToPage(page)
                 }
-                this.moveToLineColumn(0, (index - ((this.getPageIndex()) * this.settingsController.getSettings().pageSize)).toInt())
+                val inPageIndex: Int = (index - ((this.getPageIndex()) * this.settingsController.getSettings().pageSize)).toInt()
+                if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                    // In Disk Pagination, the index refers to bytes, not characters
+                    // Assuming at least 1 byte per character, we can start at string byte length and work our way backwards
+                    var charIndex = min(inPageIndex, codeArea.text.length)
+                    var byteCount = codeArea.text.substring(0, charIndex).toByteArray().size
+                    while (true) {
+                        if (byteCount == inPageIndex) {
+                            break
+                        }
+                        val codePoint = codeArea.text.codePointAt(charIndex)
+                        byteCount -=
+                                when {
+                                    codePoint <= 0x7F -> 1
+                                    codePoint <= 0x7FF -> 2
+                                    codePoint <= 0xFFFF -> 3
+                                    codePoint <= 0x1FFFFF -> 4
+                                    else -> 0
+                                }
+                        charIndex--
+                    }
+                    this.moveToLineColumn(0, charIndex)
+                } else {
+                    this.moveToLineColumn(0, inPageIndex)
+                }
+
             }
         }
     }
@@ -1302,11 +1327,22 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 if (read == -1) {
                     break
                 }
-                tmpFind = searchAndReplaceController.findNext(String(buffer, 0, read), searchText, 0,
+                val string = String(buffer, 0, read)
+                tmpFind = searchAndReplaceController.findNext(string, searchText, 0,
                         searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
                 if (tmpFind != null) {
+                    // If the file is unicode, one byte != one character
+                    // Since we search through the file in pages of byte arrays, there is no way to know
+                    // what character number we are at right now.
+                    // Therefore, convert the char indices to byte indices
+                    // If this solution is causing performance problems, refer to the following SO Thread:
+                    // https://stackoverflow.com/questions/27651543/character-index-to-and-from-byte-index
                     val cursorPosition = fileOffset - pageOverlap
-                    tmpFind = Find(tmpFind.start + cursorPosition, tmpFind.end + cursorPosition)
+                    // Bytes before the find
+                    val prefixByteLength = string.substring(0, tmpFind.start.toInt()).toByteArray().size
+                    // Bytes of the find
+                    val findByteLength = string.substring(tmpFind.start.toInt(), tmpFind.end.toInt()).toByteArray().size
+                    tmpFind = Find(prefixByteLength + cursorPosition, prefixByteLength + findByteLength + cursorPosition)
                     break
                 }
                 fileOffset += read
@@ -1327,7 +1363,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val findLength = find.end - find.start
                 val findEnd = codeArea.anchor + findLength.toInt()
                 codeArea.clearStyle(lastFindStart, lastFindEnd)
-                codeArea.setStyle(findStart, findEnd, listOf("searchHighlight"))
+                // Search Result may be split by two pages, so cap at text length
+                codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
                 lastFindStart = findStart
                 lastFindEnd = findEnd
                 this.hasFindProperty.set(true)

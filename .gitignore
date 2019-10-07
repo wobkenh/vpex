@@ -26,4 +26,3 @@ sh/deploy.sh
 sh/deploy-updater.sh
 example/large_examples/*.xml
 target
-!vpex0.11.jar
