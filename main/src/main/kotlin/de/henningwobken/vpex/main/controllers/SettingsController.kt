@@ -7,6 +7,10 @@ import mu.KotlinLogging
 import tornadofx.*
 import java.io.File
 import java.util.*
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 class SettingsController : Controller() {
     private val logger = KotlinLogging.logger {}
@@ -41,6 +45,7 @@ class SettingsController : Controller() {
         properties.setProperty("diskPaginationThreshold", settings.diskPaginationThreshold.toString())
         properties.setProperty("trustStore", settings.trustStore)
         properties.setProperty("trustStorePassword", settings.trustStorePassword)
+        properties.setProperty("insecure", settings.insecure.toString())
         properties.store(configFile.outputStream(), "")
         applySettings(settings)
     }
@@ -74,7 +79,8 @@ class SettingsController : Controller() {
                         properties.getProperty("diskPagination", "false") == "true",
                         properties.getProperty("diskPaginationThreshold", "500").toInt(),
                         properties.getProperty("trustStore", ""),
-                        properties.getProperty("trustStorePassword", "")
+                        properties.getProperty("trustStorePassword", ""),
+                        properties.getProperty("insecure", "false") == "true"
 
                 )
             } catch (e: Exception) {
@@ -99,6 +105,23 @@ class SettingsController : Controller() {
             System.setProperty("javax.net.ssl.trustStore", settings.trustStore);
             System.setProperty("javax.net.ssl.trustStorePassword", settings.trustStorePassword);
         }
+        if (settings.insecure) {
+            logger.warn("Disabling SSL security")
+            val dummyTrustManager = arrayOf<TrustManager>(object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {
+                }
+
+                override fun checkServerTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {
+                }
+
+                override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate>? {
+                    return null
+                }
+            })
+            val sc = SSLContext.getInstance("SSL")
+            sc.init(null, dummyTrustManager, java.security.SecureRandom())
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.socketFactory);
+        }
     }
 
     private fun getDefaultSettings(): Settings =
@@ -119,7 +142,8 @@ class SettingsController : Controller() {
                     true,
                     500,
                     "",
-                    ""
+                    "",
+                    false
             )
 
 

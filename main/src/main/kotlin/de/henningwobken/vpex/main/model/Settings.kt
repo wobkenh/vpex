@@ -21,7 +21,8 @@ class Settings(
         val diskPagination: Boolean,
         val diskPaginationThreshold: Int,
         val trustStore: String,
-        val trustStorePassword: String
+        val trustStorePassword: String,
+        val insecure: Boolean
 ) {
     fun hasProxy(): Boolean = proxyHost.isNotBlank()
 

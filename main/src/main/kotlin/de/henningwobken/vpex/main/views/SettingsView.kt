@@ -37,6 +37,7 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val diskPaginationThresholdProperty = SimpleIntegerProperty()
     private val trustStoreProperty = SimpleStringProperty()
     private val trustStorePasswordProperty = SimpleStringProperty()
+    private val insecureProperty = SimpleBooleanProperty()
 
     init {
         val settings = settingsController.getSettings()
@@ -57,6 +58,7 @@ class SettingsView : View("VPEX - Einstellungen") {
         diskPaginationThresholdProperty.set(settings.diskPaginationThreshold)
         trustStoreProperty.set(settings.trustStore)
         trustStorePasswordProperty.set(settings.trustStorePassword)
+        insecureProperty.set(settings.insecure)
     }
 
     override val root = borderpane {
@@ -201,6 +203,9 @@ class SettingsView : View("VPEX - Einstellungen") {
                             maxWidth = 200.0
                         }
                     }
+                    field("Use insecure connection / Ignore SSL") {
+                        checkbox("WARNING: This is a major security risk.", insecureProperty)
+                    }
                     field("Version") {
                         label(updateController.currentVersion)
                     }
@@ -259,7 +264,8 @@ class SettingsView : View("VPEX - Einstellungen") {
                 diskPaginationProperty.get(),
                 diskPaginationThresholdProperty.get(),
                 trustStoreProperty.get(),
-                trustStorePasswordProperty.get()
+                trustStorePasswordProperty.get(),
+                insecureProperty.get()
         )
         settingsController.saveSettings(settings)
         backToMainScreen()
