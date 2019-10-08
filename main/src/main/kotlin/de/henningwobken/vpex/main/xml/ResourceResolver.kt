@@ -1,6 +1,7 @@
 package de.henningwobken.vpex.main.xml
 
 import com.sun.org.apache.xerces.internal.dom.DOMInputImpl
+import javafx.application.Platform
 import javafx.scene.control.Alert
 import javafx.scene.layout.Region
 import javafx.stage.FileChooser
@@ -21,8 +22,14 @@ class ResourceResolver(private val basePath: String) : LSResourceResolver {
             val file = chooseFile(systemId)
             inputStream = file.inputStream()
         } else {
-            val file = File(basePath).walk().find {
+            var file = File(basePath).walk().find {
                 it.name == "$systemId.xsd" || it.name == systemId
+            }
+            if (file == null && namespaceURI != null && namespaceURI.isNotEmpty()) {
+                val alternativeName = namespaceURI.split(":").last()
+                file = File(basePath).walk().find {
+                    it.name == "$alternativeName.xsd" || it.name == alternativeName
+                }
             }
             inputStream = if (file == null) {
                 alertFileMissing(type, namespaceURI, publicId, systemId, baseURI)
@@ -36,22 +43,38 @@ class ResourceResolver(private val basePath: String) : LSResourceResolver {
     }
 
     private fun chooseFile(systemId: String?): File {
-        val fileChooser = FileChooser()
-        fileChooser.title = "Choose Schema file $systemId"
-        fileChooser.initialDirectory = File(basePath).absoluteFile
-        return fileChooser.showOpenDialog(FX.primaryStage) ?: throw RuntimeException("No file chosen. Abort.")
+        var isDone = false
+        var file: File? = null
+        Platform.runLater {
+            val fileChooser = FileChooser()
+            fileChooser.title = "Choose Schema file $systemId"
+            fileChooser.initialDirectory = File(basePath).absoluteFile
+            file = fileChooser.showOpenDialog(FX.primaryStage) ?: throw RuntimeException("No file chosen. Abort.")
+            isDone = true
+        }
+        while (!isDone) {
+            Thread.sleep(100)
+        }
+        return requireNotNull(file)
     }
 
     private fun alertFileMissing(type: String?, namespaceURI: String?, publicId: String?, systemId: String?, baseURI: String?) {
-        val alert = Alert(Alert.AlertType.WARNING, "The validator asked for the following schema, please locate it yourself:\n" +
-                "Type $type\n" +
-                "NamespaceURI $namespaceURI\n" +
-                "Public ID $publicId\n" +
-                "System ID $systemId\n" +
-                "Base $baseURI")
-        alert.title = "Error resolving schema name/id"
-        alert.dialogPane.minHeight = Region.USE_PREF_SIZE
-        alert.showAndWait()
+        var isDone = false
+        Platform.runLater {
+            val alert = Alert(Alert.AlertType.WARNING, "The validator asked for the following schema, please locate it yourself:\n" +
+                    "Type $type\n" +
+                    "NamespaceURI $namespaceURI\n" +
+                    "Public ID $publicId\n" +
+                    "System ID $systemId\n" +
+                    "Base $baseURI")
+            alert.title = "Error resolving schema name/id"
+            alert.dialogPane.minHeight = Region.USE_PREF_SIZE
+            alert.showAndWait()
+            isDone = true
+        }
+        while (!isDone) {
+            Thread.sleep(100)
+        }
     }
 
 }

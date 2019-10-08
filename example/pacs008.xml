@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SCLSCT:BBkICFBlkCdtTrf xmlns:SCLSCT="urn:BBkICF:xsd:$BBkICFBlkCdtTrf"
+                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                        xsi:schemaLocation="urn:BBkICF:xsd:$BBkICFBlkCdtTrf BBkICFBlkCdtTrf.xsd">
+    <SCLSCT:SndgInst>AAAADEFFXXX</SCLSCT:SndgInst>
+    <SCLSCT:RcvgInst>MARKDEFF</SCLSCT:RcvgInst>
+    <SCLSCT:FileRef>JJJJMMTT000000999</SCLSCT:FileRef>
+    <SCLSCT:SrvcID>SCT</SCLSCT:SrvcID>
+    <SCLSCT:TstCode>P</SCLSCT:TstCode>
+    <SCLSCT:FType>ICF</SCLSCT:FType>
+    <SCLSCT:FDtTm>JJJJ-MM-ttThh:mm:ss</SCLSCT:FDtTm>
+    <SCLSCT:NumCTBlk>1</SCLSCT:NumCTBlk>
+    <SCLSCT:NumPCRBlk>0</SCLSCT:NumPCRBlk>
+    <SCLSCT:NumRFRBlk>0</SCLSCT:NumRFRBlk>
+    <SCLSCT:NumROIBlk>0</SCLSCT:NumROIBlk>
+    <SCLSCT:FIToFICstmrCdtTrf xmlns="urn:iso:std:iso:20022:tech:xsd:sct:pacs.008.001.02">
+        <GrpHdr>
+            <MsgId>AAAADEFFXXXJJJJMMTT0000000000001111</MsgId>
+            <CreDtTm>JJJJ-MM-ttThh:mm:ss</CreDtTm>
+            <NbOfTxs>1</NbOfTxs>
+            <TtlIntrBkSttlmAmt Ccy="EUR">123.45</TtlIntrBkSttlmAmt>
+            <IntrBkSttlmDt>JJJJ-MM-TT</IntrBkSttlmDt>
+            <SttlmInf>
+                <SttlmMtd>CLRG</SttlmMtd>
+                <ClrSys>
+                    <Prtry>SCL</Prtry>
+                </ClrSys>
+            </SttlmInf>
+            <InstgAgt>
+                <FinInstnId>
+                    <BIC>AAAADEFFXXX</BIC>
+                </FinInstnId>
+            </InstgAgt>
+        </GrpHdr>
+        <CdtTrfTxInf>
+            <PmtId>
+                <InstrId>ABCDE000000000777</InstrId>
+                <EndToEndId>NOTPROVIDED</EndToEndId>
+                <TxId>JJJJMMTT000000000000000000001</TxId>
+            </PmtId>
+            <PmtTpInf>
+                <SvcLvl>
+                    <Cd>SEPA</Cd>
+                </SvcLvl>
+            </PmtTpInf>
+            <IntrBkSttlmAmt Ccy="EUR">123.45</IntrBkSttlmAmt>
+            <ChrgBr>SLEV</ChrgBr>
+            <Dbtr>
+                <Nm>Name SEPA Debtor</Nm>
+            </Dbtr>
+            <DbtrAcct>
+                <Id>
+                    <IBAN>DE00888888883333333333</IBAN>
+                </Id>
+            </DbtrAcct>
+            <DbtrAgt>
+                <FinInstnId>
+                    <BIC>AAAADEFFXXX</BIC>
+                </FinInstnId>
+            </DbtrAgt>
+            <CdtrAgt>
+                <FinInstnId>
+                    <BIC>CCCCDEFFXXX</BIC>
+                </FinInstnId>
+            </CdtrAgt>
+            <Cdtr>
+                <Nm>Name SEPA Creditor</Nm>
+            </Cdtr>
+            <CdtrAcct>
+                <Id>
+                    <IBAN>DE7755555555999999999</IBAN>
+                </Id>
+            </CdtrAcct>
+            <RmtInf>
+                <Ustrd>SEPA TEST SEPA PACS.008 Bank an Bundesbank</Ustrd>
+            </RmtInf>
+        </CdtTrfTxInf>
+    </SCLSCT:FIToFICstmrCdtTrf>
+</SCLSCT:BBkICFBlkCdtTrf>
