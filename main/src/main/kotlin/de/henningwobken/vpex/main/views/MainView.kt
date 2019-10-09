@@ -3,7 +3,9 @@ package de.henningwobken.vpex.main.views
 import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.*
 import de.henningwobken.vpex.main.model.*
-import de.henningwobken.vpex.main.xml.*
+import de.henningwobken.vpex.main.xml.ProgressInputStream
+import de.henningwobken.vpex.main.xml.ProgressReader
+import de.henningwobken.vpex.main.xml.XmlFormattingService
 import javafx.application.Platform
 import javafx.beans.property.*
 import javafx.geometry.Pos
@@ -15,6 +17,7 @@ import javafx.scene.layout.BorderPane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.stage.FileChooser
+import javafx.stage.StageStyle
 import javafx.util.Duration
 import mu.KotlinLogging
 import org.fxmisc.flowless.VirtualizedScrollPane
@@ -24,14 +27,11 @@ import tornadofx.*
 import java.io.*
 import java.nio.file.Files
 import java.text.NumberFormat
-import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
 import javax.xml.transform.OutputKeys
 import javax.xml.transform.TransformerFactory
-import javax.xml.transform.sax.SAXSource
 import javax.xml.transform.stream.StreamResult
 import javax.xml.transform.stream.StreamSource
-import javax.xml.validation.SchemaFactory
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -263,12 +263,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                             hbox(5) {
                                 vbox(5) {
                                     button("Find next") {
-                                        fillHorizontal(this)
+                                        ViewHelper.fillHorizontal(this)
                                     }.action {
                                         findNext()
                                     }
                                     button("Find all") {
-                                        fillHorizontal(this)
+                                        ViewHelper.fillHorizontal(this)
                                     }.action {
                                         statusTextProperty.set("Searching")
                                         searchAll { finds ->
@@ -283,7 +283,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         statusTextProperty.set("")
                                     }
                                     button("List all") {
-                                        fillHorizontal(this)
+                                        ViewHelper.fillHorizontal(this)
                                     }.action {
                                         // TODO: open popup with code snippets of matches
                                     }
@@ -291,18 +291,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                 vbox(5) {
                                     button("Replace this") {
                                         enableWhen { hasFindProperty.and(showReplaceProperty) }
-                                        fillHorizontal(this)
+                                        ViewHelper.fillHorizontal(this)
                                     }.action {
                                         codeArea.replaceText(lastFindStart, lastFindEnd, replaceProperty.get())
                                     }
                                     button("Replace all") {
                                         enableWhen { showReplaceProperty }
-                                        fillHorizontal(this)
+                                        ViewHelper.fillHorizontal(this)
                                     }.action {
                                         replaceAll()
                                     }
                                     button("Count") {
-                                        fillHorizontal(this)
+                                        ViewHelper.fillHorizontal(this)
                                     }.action {
                                         searchAll { }
                                     }
@@ -355,7 +355,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     saveLockProperty.set(false)
                 }
                 label("") {
-                    fillHorizontal(this)
+                    ViewHelper.fillHorizontal(this)
                 }
                 label(statusTextProperty)
                 progressbar(downloadProgressProperty) {
@@ -471,11 +471,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             event.consume()
         }
 
-    }
-
-    private fun fillHorizontal(region: Region) {
-        region.hgrow = Priority.ALWAYS
-        region.maxWidth = Int.MAX_VALUE.toDouble()
     }
 
     private fun closeSearchAndReplace() {
@@ -713,29 +708,34 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 userLine = it.toInt()
                 userColumn = 0
             }
-            if (displayMode.get() == DisplayMode.PAGINATION) {
-                moveToPage(this.page.get()) // Might change starting line counts if there are unsaved changes
-                var page = 1
-                for (i in this.maxPage.get() downTo 1) {
-                    if (userLine > pageStartingLineCounts[i - 1]) {
-                        page = i
-                        break
-                    }
+            moveTo(userLine.toLong(), userColumn.toLong())
+        }
+    }
+
+    private fun moveTo(userLine: Long, userColumn: Long) {
+        if (displayMode.get() == DisplayMode.PAGINATION) {
+            moveToPage(this.page.get()) // Might change starting line counts if there are unsaved changes
+            var page = 1
+            for (i in this.maxPage.get() downTo 1) {
+                if (userLine > pageStartingLineCounts[i - 1]) {
+                    page = i
+                    break
                 }
-                if (page != this.page.get()) {
-                    moveToPage(page)
-                }
-                val line = max(min(userLine - pageStartingLineCounts[page - 1], codeArea.paragraphs.size), 1) - 1
-                val column = min(userColumn, codeArea.getParagraph(line).length())
-                moveToLineColumn(line, column)
-            } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-                // TODO: Read next page from file
-                throw UnsupportedOperationException("Not yet implemented")
-            } else {
-                val line = max(min(userLine, codeArea.paragraphs.size), 1) - 1
-                val column = min(userColumn, codeArea.getParagraph(line).length())
-                moveToLineColumn(line, column)
             }
+            if (page != this.page.get()) {
+                moveToPage(page)
+            }
+            val line = max(min((userLine - pageStartingLineCounts[page - 1]).toInt(), codeArea.paragraphs.size), 1) - 1
+            // TODO: Should be long
+            val column = min(userColumn.toInt(), codeArea.getParagraph(line).length())
+            moveToLineColumn(line, column)
+        } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            // TODO: Read next page from file
+            throw UnsupportedOperationException("Not yet implemented")
+        } else {
+            val line = max(min(userLine.toInt(), codeArea.paragraphs.size), 1) - 1
+            val column = min(userColumn.toInt(), codeArea.getParagraph(line).length())
+            moveToLineColumn(line, column)
         }
     }
 
@@ -835,37 +835,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun validateSchema() {
         statusTextProperty.set("Validating Schema")
-        Thread {
-            logger.info("Validating against schema")
-            val schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI)
-            schemaFactory.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
-            schemaFactory.errorHandler = XmlErrorHandler()
-            val schema = schemaFactory.newSchema()
-            val validator = schema.newValidator()
-            validator.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
-            if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-                val file = getFile()
-                val fileLength = file.length()
-                validator.validate(SAXSource(InputSource(ProgressInputStream(file.inputStream()) {
-                    Platform.runLater {
-                        fileProgressProperty.set(it / fileLength.toDouble())
-                    }
-                })))
-            } else {
-                val text = getFullText()
-                val textLength = text.length
-                validator.validate(SAXSource(InputSource(ProgressInputStream(text.byteInputStream()) {
-                    Platform.runLater {
-                        fileProgressProperty.set(it / textLength.toDouble())
-                    }
-                })))
-            }
-            Platform.runLater {
-                fileProgressProperty.set(-1.0)
-                statusTextProperty.set("")
-                alert(INFORMATION, "The council has decided", "This xml file is schematically compliant.")
-            }
-        }.start()
+        val resultFragment = find<SchemaResultFragment>()
+        resultFragment.gotoLineColumn = this::moveTo
+        resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
+
+        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            val file = getFile()
+            val fileLength = file.length()
+            resultFragment.validateSchema(file.inputStream(), fileLength)
+        } else {
+            val text = getFullText()
+            val textLength = text.length
+            resultFragment.validateSchema(text.byteInputStream(), textLength.toLong())
+        }
     }
 
     private fun prettyPrint() {
