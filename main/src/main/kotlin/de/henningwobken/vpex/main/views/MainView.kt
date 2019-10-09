@@ -1115,8 +1115,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
             }
             if (this.hasFindProperty.get()) {
-                // Edit invalidated search result => Remove Highlight
-                if (this.codeArea.text.substring(this.lastFindStart, this.lastFindEnd) != this.findProperty.get()) {
+                // The edit has invalidated the search result => Remove Highlight
+                if (this.codeArea.text.length >= this.findProperty.get().length &&
+                        this.codeArea.text.substring(this.lastFindStart, this.lastFindEnd) != this.findProperty.get()) {
                     logger.info("Removed Highlighting because search result was invalidated through editing")
                     removeFindHighlighting()
                 }
