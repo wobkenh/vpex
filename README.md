@@ -1,7 +1,7 @@
 # <img src="https://simplex24.de/vpex/vpex_logo.png" height="125"/>
 VPEX is a very basic and lightweight editor for large text/xml files. It allows you to **V**iew, **P**arse (syntax and schema validation) and **E**dit large **X**ml files. 
 
-VPEX was designed to be quick and reliable while working with files of around 50-200 MB. Even larger files _may_ work, but are not tested.
+VPEX was designed to be quick and reliable while working with files of any size.
 
 ## Installation
 
@@ -22,9 +22,13 @@ And so, the idea for vpex was born.
 - Schema validation with automatic schema detection (specify a schema directory via config)
 - Pretty print
 - "Ugly print" = Condense into a single line (Exception: Data and comments are preserved as is)
-- Pagination: For large files, only a part (page) is displayed at a time. Editing functions still use the whole file content. You can configure if and when pagination is enabled.
-- Auto-Updater
-- All the things you like from other editors and more (undo, dirty/unchanged indicator, line count, char count, line numbering, memory usage indicator, ...)  
+- Actions like validation and formatting are done asynchronously as to not block the ui
+- Display Modes: To always offer the best performance, VPEX chooses one of three display modes depending on the size of the file. The thresholds for the display modes are fully configurable. The three display modes are:
+    - plain: Read the file into memory and display everything
+    - pagination: Read the file into memory and display only one page at a time
+    - disk pagination: Only read one page at a time into memory
+- Auto-Updater (cacerts and proxy options included)
+- All the things you like from other editors and more (undo, find/replace, dirty/unchanged indicator, line count, char count, line numbering, memory usage indicator, ...)  
 
 ## Technology Stack
 VPEX is a Desktop Application written in Kotlin using the TornadoFX Framework, which itself makes use of the JavaFX toolkit.
@@ -53,10 +57,10 @@ If you do not know what to work on, you can chose a task from the todo list belo
 - Opened files history
 - Ignore syntax on pretty print
 - Comment out shortcut
-- Open and edit very large files without loading the whole file content into memory
 - Syntax highlighting (with configurable threshold)
 - Selection text length
 - Cursor column
 - XPath support
-- Lock icon button to disable editing to make sure you don't accidentally change the file
-- Proper example setup and unittests
+- Allow editing in disk pagination display mode
+- Allow opening of multiple files using tabs
+- Increase unit test coverage
