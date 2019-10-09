@@ -412,6 +412,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     lineCount.bind(codeArea.paragraphs.sizeProperty())
                     displayMode.set(DisplayMode.PLAIN)
                     isDirty.set(false)
+                    statusTextProperty.set("")
+                    fileProgressProperty.set(-1.0)
                 }
                 hbox(10) {
                     removeWhen { displayMode.isEqualTo(DisplayMode.DISK_PAGINATION) }
