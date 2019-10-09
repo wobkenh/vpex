@@ -7,11 +7,8 @@ import de.henningwobken.vpex.main.xml.*
 import javafx.application.Platform
 import javafx.beans.property.*
 import javafx.geometry.Pos
-import javafx.scene.control.Alert
+import javafx.scene.control.*
 import javafx.scene.control.Alert.AlertType.INFORMATION
-import javafx.scene.control.ButtonType
-import javafx.scene.control.Label
-import javafx.scene.control.TextInputDialog
 import javafx.scene.input.KeyCode
 import javafx.scene.input.TransferMode
 import javafx.scene.layout.BorderPane
@@ -60,6 +57,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val downloadProgressProperty = SimpleDoubleProperty(-1.0)
     private val fileProgressProperty = SimpleDoubleProperty(-1.0)
     private val saveLockProperty = SimpleBooleanProperty(false)
+
+    private lateinit var findTextField: TextField
 
     // Memory monitor
     private val maxMemory = round(Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0).toLong()
@@ -160,6 +159,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Search", "Shortcut+F").action {
                         showReplaceProperty.set(false)
                         showFindProperty.set(true)
+                        findTextField.requestFocus()
+                        findTextField.selectAll()
                     }
                 }
                 menu("Edit") {
@@ -174,6 +175,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Replace", "Shortcut+R").action {
                         showReplaceProperty.set(true)
                         showFindProperty.set(false)
+                        findTextField.requestFocus()
+                        findTextField.selectAll()
                     }
                 }
                 menu("Validate") {
@@ -202,17 +205,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         fieldset {
                             field("Find") {
                                 textfield(findProperty) {
-                                    val textfield = this
-                                    showReplaceProperty.onChange {
-                                        if (it) {
-                                            textfield.requestFocus()
-                                        }
-                                    }
-                                    showFindProperty.onChange {
-                                        if (it) {
-                                            textfield.requestFocus()
-                                        }
-                                    }
+                                    findTextField = this
                                     this.setOnKeyPressed {
                                         // Select the find if there was a find and the user did not change his position in the code area
                                         if (it.code == KeyCode.TAB && hasFindProperty.get() && lastFindStart == codeArea.anchor) {
@@ -1163,7 +1156,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     // Search and replace functions
 
     private fun removeFindHighlighting() {
-        this.codeArea.clearStyle(0, codeArea.length - 1)
+        if (codeArea.length > 0) {
+            this.codeArea.clearStyle(0, codeArea.length - 1)
+        }
         this.hasFindProperty.set(false)
         this.lastFindStart = 0
         this.lastFindEnd = 0
