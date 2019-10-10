@@ -138,6 +138,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 stopMonitorThread = true
                 logger.info { "Set stop flag for memory monitor thread" }
             }
+            fileWatcher?.stopThread()
         }
     }
 
