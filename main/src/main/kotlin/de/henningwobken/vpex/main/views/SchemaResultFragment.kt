@@ -1,5 +1,6 @@
 package de.henningwobken.vpex.main.views
 
+import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.InternalResourceController
 import de.henningwobken.vpex.main.controllers.SettingsController
 import de.henningwobken.vpex.main.model.InternalResource
@@ -10,12 +11,10 @@ import javafx.application.Platform
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleDoubleProperty
 import javafx.geometry.Pos
-import javafx.scene.Cursor
 import javafx.scene.Node
 import javafx.scene.control.Alert
-import javafx.scene.effect.DropShadow
 import javafx.scene.image.ImageView
-import javafx.scene.paint.Color
+import javafx.scene.layout.Region
 import mu.KotlinLogging
 import org.xml.sax.ErrorHandler
 import org.xml.sax.InputSource
@@ -43,15 +42,6 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
 
     private data class SAXExceptionWrapper(val exception: SAXParseException, val severity: ValidationSeverity)
 
-    private val dropShadow: DropShadow = {
-        val dropShadow = DropShadow()
-        dropShadow.radius = 3.0
-        dropShadow.offsetX = 1.0
-        dropShadow.offsetY = 2.0
-        dropShadow.color = Color.color(0.4, 0.5, 0.5)
-        dropShadow
-    }()
-
     private val progressProperty = SimpleDoubleProperty(0.0)
     private val workingProperty = SimpleBooleanProperty(true)
     private val hasErrorsProperty = SimpleBooleanProperty(false)
@@ -62,9 +52,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
         prefHeight = 500.0
         top = hbox {
             removeWhen(hasErrorsProperty.not())
-            alignment = Pos.CENTER
-            paddingAll = 10
-            style = "-fx-background-color: #1F1E2F; -fx-font-weight: bold;"
+            addClass(Styles.primaryHeader)
             label(exceptions.sizeProperty.stringBinding { "Found $it warnings or errors" }) {
                 style = "-fx-text-fill: white"
             }
@@ -72,7 +60,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                 ViewHelper.fillHorizontal(this)
             }
             button("Copy All") {
-                style = "-fx-background-color: #0A92BF; -fx-text-fill: white; -fx-font-weight: bold;"
+                addClass(Styles.button)
                 action {
                     val stringSelection = StringSelection(exceptions.joinToString("\n") { exceptionToString(it) })
                     Toolkit.getDefaultToolkit().systemClipboard.setContents(stringSelection, null)
@@ -84,12 +72,35 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
             isFitToWidth = true
             vbox {
                 val vbox = this
-                vbox(50) {
+                stackpane {
+                    isFitToWidth = true
                     prefHeight = 450.0
                     alignment = Pos.CENTER
-                    removeWhen(hasErrorsProperty.or(workingProperty))
-                    label("The council has decided.")
-                    label("This xml file is schematically compliant.")
+                    hbox(50) {
+                        addClass(Styles.card)
+                        paddingAll = 50.0
+                        removeWhen(hasErrorsProperty.or(workingProperty))
+                        maxWidth = Region.USE_PREF_SIZE
+                        maxHeight = Region.USE_PREF_SIZE
+                        alignment = Pos.CENTER
+                        hbox {
+                            alignment = Pos.CENTER
+                            prefWidth = 96.0
+                            maxWidth = 96.0
+                            label {
+                                graphic = internalResourceController.getAsSvg(InternalResource.SUCCESS_ICON)
+                                graphic.scaleX = 4.0
+                                graphic.scaleY = 4.0
+                            }
+                        }
+                        vbox(40) {
+                            minWidth = Region.USE_PREF_SIZE
+                            minHeight = Region.USE_PREF_SIZE
+                            alignment = Pos.CENTER_LEFT
+                            label("The council has decided.")
+                            label("This xml file is schematically compliant.")
+                        }
+                    }
                 }
                 exceptions.onChange { exceptionChange ->
                     if (exceptionChange.next()) {
@@ -161,62 +172,59 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
         return hbox {
             paddingTop = 15
             paddingHorizontal = 15
-            hbox {
-                alignment = Pos.CENTER
-                prefWidth = 48.0
-                maxWidth = 48.0
-                label {
-                    graphic = when (exceptionWrapper.severity) {
-                        ValidationSeverity.WARNING -> internalResourceController.getAsSvg(InternalResource.WARN_ICON)
-                        ValidationSeverity.ERROR -> internalResourceController.getAsSvg(InternalResource.ERROR_ICON)
-                        ValidationSeverity.FATAL -> {
-                            val image = ImageView(internalResourceController.getAsImage(InternalResource.FATAL_ICON))
-                            image.fitHeight = 48.0
-                            image.fitWidth = 48.0
-                            image.smoothProperty().set(true)
-                            image
-                        }
-                    }
-                    if (exceptionWrapper.severity != ValidationSeverity.FATAL) {
-                        graphic.scaleX = 2.0
-                        graphic.scaleY = 2.0
-                    }
-                }
-            }
-            label("") {
-                prefWidth = 10.0
-            }
-            vbox {
+            hbox(10) {
                 ViewHelper.fillHorizontal(this)
-                style = "-fx-background-color: white;"
-                paddingAll = 10
-                effect = dropShadow
-                textfield {
-                    style = "-fx-background-color: transparent; -fx-background-insets: 0px;"
-                    if (exception.publicId != null || exception.systemId != null) {
-                        if (exception.publicId != null) {
-                            text += exception.publicId
+                addClass(Styles.card)
+                paddingAll = 10.0
+                hbox {
+                    alignment = Pos.CENTER
+                    prefWidth = 48.0
+                    maxWidth = 48.0
+                    label {
+                        graphic = when (exceptionWrapper.severity) {
+                            ValidationSeverity.WARNING -> internalResourceController.getAsSvg(InternalResource.WARN_ICON)
+                            ValidationSeverity.ERROR -> internalResourceController.getAsSvg(InternalResource.ERROR_ICON)
+                            ValidationSeverity.FATAL -> {
+                                val image = ImageView(internalResourceController.getAsImage(InternalResource.FATAL_ICON))
+                                image.fitHeight = 48.0
+                                image.fitWidth = 48.0
+                                image.smoothProperty().set(true)
+                                image
+                            }
                         }
-                        if (exception.systemId != null) {
-                            text += exception.systemId
+                        if (exceptionWrapper.severity != ValidationSeverity.FATAL) {
+                            graphic.scaleX = 2.0
+                            graphic.scaleY = 2.0
                         }
-                        text += ": "
                     }
-                    text += "at ${exception.lineNumber}:${exception.columnNumber}"
                 }
-                textfield {
-                    style = "-fx-background-color: transparent; -fx-background-insets: 0px;"
-                    text = exception.message
+                vbox {
+                    ViewHelper.fillHorizontal(this)
+                    textfield {
+                        addClass(Styles.selectable)
+                        if (exception.publicId != null || exception.systemId != null) {
+                            if (exception.publicId != null) {
+                                text += exception.publicId
+                            }
+                            if (exception.systemId != null) {
+                                text += exception.systemId
+                            }
+                            text += ": "
+                        }
+                        text += "at ${exception.lineNumber}:${exception.columnNumber}"
+                    }
+                    textfield {
+                        addClass(Styles.selectable)
+                        text = exception.message
+                    }
                 }
             }
             label("") {
                 prefWidth = 30.0
             }
             button("GOTO") {
-                style = "-fx-background-color: #0A92BF; -fx-text-fill: white; -fx-font-weight: bold;"
+                addClass(Styles.button)
                 ViewHelper.fillVertical(this)
-                cursor = Cursor.HAND
-                effect = dropShadow
                 action {
                     gotoLineColumn(exception.lineNumber.toLong(), 1) // TODO: Column number incorrect
                 }
