@@ -3,6 +3,7 @@ package de.henningwobken.vpex.main.views
 import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.*
 import de.henningwobken.vpex.main.model.*
+import de.henningwobken.vpex.main.other.FileWatcher
 import de.henningwobken.vpex.main.xml.ProgressInputStream
 import de.henningwobken.vpex.main.xml.ProgressReader
 import de.henningwobken.vpex.main.xml.XmlFormattingService
@@ -59,6 +60,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val saveLockProperty = SimpleBooleanProperty(false)
 
     private lateinit var findTextField: TextField
+
+    private var fileWatcher: FileWatcher? = null
+    private var isAskingForFileReload = false
 
     // Memory monitor
     private val maxMemory = round(Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0).toLong()
@@ -480,6 +484,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         isDirty.set(false)
         statusTextProperty.set("")
         fileProgressProperty.set(-1.0)
+        fileWatcher?.stopThread()
+        fileWatcher = null
     }
 
     private fun closeSearchAndReplace() {
@@ -878,6 +884,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val outputFile = choseFile()
             if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
                 Thread {
+                    fileWatcher?.ignore?.set(true)
                     val inputFile = getFile()
                     val inputFileLength = inputFile.length()
                     val xmlOutput = StreamResult(FileWriter(outputFile))
@@ -887,6 +894,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         }
                     }))
                     transformer.transform(xmlInput, xmlOutput)
+                    fileWatcher?.ignore?.set(false)
                     Platform.runLater {
                         fileProgressProperty.set(-1.0)
                         statusTextProperty.set("")
@@ -992,7 +1000,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val file = this.file
         if (file != null && !saveLockProperty.get()) {
             val text = getFullText()
+            fileWatcher?.ignore?.set(true)
             Files.write(file.toPath(), text.toByteArray())
+            fileWatcher?.ignore?.set(false)
             isDirty.set(false)
             logger.info("Saved")
         } else {
@@ -1009,7 +1019,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (file != null) {
             this.file = file
             val text = getFullText()
+            fileWatcher?.ignore?.set(true)
             Files.write(file.toPath(), text.toByteArray())
+            fileWatcher?.ignore?.set(false)
             setFileTitle(file)
             isDirty.set(false)
             logger.info("Saved as")
@@ -1034,6 +1046,22 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         codeArea.replaceText("")
         fullText = ""
         codeArea.isEditable = true
+        val fileWatcher = FileWatcher(file) {
+            Platform.runLater {
+                if (!isAskingForFileReload) {
+                    isAskingForFileReload = true
+                    confirmation("Update", "The file was updated externally. Reload?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
+                        isAskingForFileReload = false
+                        if (it.buttonData.isDefaultButton) {
+                            closeFile()
+                            openFile(file)
+                        }
+                    })
+                }
+            }
+        }
+        this.fileWatcher = fileWatcher
+        fileWatcher.start()
         val settings = settingsController.getSettings()
         if (settings.diskPagination && file.length() > settings.diskPaginationThreshold * 1024 * 1024) {
             logger.info { "Opening file in disk pagination mode" }
