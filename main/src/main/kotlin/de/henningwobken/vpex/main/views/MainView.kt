@@ -348,14 +348,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 button {
                     removeWhen { saveLockProperty }
                     tooltip("Unlocked - Changes will be written to file when pressing CTRL+S. Click to lock.")
-                    graphic = internalResourceController.getAsSvg(InternalResource.LOCK_OPEN)
+                    graphic = internalResourceController.getAsSvg(InternalResource.LOCK_OPEN_ICON)
                 }.action {
                     saveLockProperty.set(true)
                 }
                 button {
                     removeWhen { saveLockProperty.not() }
                     tooltip("Locked - CTRL+S will open a 'save as' dialog. Click to unlock.")
-                    graphic = internalResourceController.getAsSvg(InternalResource.LOCK_CLOSED)
+                    graphic = internalResourceController.getAsSvg(InternalResource.LOCK_CLOSED_ICON)
                 }.action {
                     saveLockProperty.set(false)
                 }

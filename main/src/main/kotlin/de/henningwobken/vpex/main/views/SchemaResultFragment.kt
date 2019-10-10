@@ -73,13 +73,13 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
             vbox {
                 val vbox = this
                 stackpane {
+                    removeWhen(hasErrorsProperty.or(workingProperty))
                     isFitToWidth = true
                     prefHeight = 450.0
                     alignment = Pos.CENTER
                     hbox(50) {
                         addClass(Styles.card)
                         paddingAll = 50.0
-                        removeWhen(hasErrorsProperty.or(workingProperty))
                         maxWidth = Region.USE_PREF_SIZE
                         maxHeight = Region.USE_PREF_SIZE
                         alignment = Pos.CENTER

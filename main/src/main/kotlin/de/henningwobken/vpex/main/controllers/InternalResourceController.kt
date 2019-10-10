@@ -13,6 +13,10 @@ class InternalResourceController : Controller() {
         return SvgLoader().loadSvg(Vpex::class.java.classLoader.getResourceAsStream(resource.filename))
     }
 
+    fun getAsSvg(resource: InternalResource, color: String): Group {
+        return SvgLoader().loadSvg(getAsString(resource).replace(Regex("fill=\"#[0-9A-F]{6}\""), "fill=\"$color\"").byteInputStream())
+    }
+
     fun getAsImage(resource: InternalResource): Image {
         return Image(Vpex::class.java.classLoader.getResourceAsStream(resource.filename))
     }

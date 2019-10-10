@@ -35,6 +35,7 @@ class Styles : Stylesheet() {
         val errorColor = c("#A1140A")
         val primaryColor = c("#1F1E2F")
         val secondaryColor = c("#0A92BF")
+        val secondaryColorDarker = c("#0A7BA5")
     }
 
     init {
@@ -53,6 +54,9 @@ class Styles : Stylesheet() {
             fontWeight = FontWeight.BOLD
             padding = box(10.px)
             alignment = Pos.CENTER
+            label {
+                textFill = Color.WHITE
+            }
         }
         button {
             backgroundColor += secondaryColor
@@ -60,6 +64,9 @@ class Styles : Stylesheet() {
             textFill = Color.WHITE
             cursor = Cursor.HAND
             effect = dropShadow
+            and(pressed) {
+                backgroundColor += secondaryColorDarker
+            }
         }
         card {
             backgroundColor += Color.WHITE
