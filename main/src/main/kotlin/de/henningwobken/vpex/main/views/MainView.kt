@@ -1280,21 +1280,30 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             logger.info("No Replacements made")
             return
         }
-        val fulltext = getFullText()
-        val stringBuilder = StringBuilder()
-        val replacementText = this.replaceProperty.get()
-        var lastEndIndex = 0
-        for (find in allFinds) {
-            stringBuilder.append(fulltext.substring(lastEndIndex, find.start.toInt()))
-            stringBuilder.append(replacementText)
-            lastEndIndex = find.end.toInt()
-        }
-        stringBuilder.append(fulltext.substring(lastEndIndex))
-        if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
-            changeFullText(stringBuilder.toString())
+        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            // We need to read the original file page by page,
+            // do the replacements on the fly
+            // and write each page back to the target file
+//            file.inputStream()
+            throw java.lang.UnsupportedOperationException("Not yet implemented")
         } else {
-            this.codeArea.replaceText(stringBuilder.toString())
+            val fulltext = getFullText()
+            val stringBuilder = StringBuilder()
+            val replacementText = this.replaceProperty.get()
+            var lastEndIndex = 0
+            for (find in allFinds) {
+                stringBuilder.append(fulltext.substring(lastEndIndex, find.start.toInt()))
+                stringBuilder.append(replacementText)
+                lastEndIndex = find.end.toInt()
+            }
+            stringBuilder.append(fulltext.substring(lastEndIndex))
+            if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
+                changeFullText(stringBuilder.toString())
+            } else {
+                this.codeArea.replaceText(stringBuilder.toString())
+            }
         }
+
     }
 
     private fun isInPage(find: Find): Boolean {
