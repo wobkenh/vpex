@@ -151,6 +151,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Save as", "Shortcut+Shift+S").action {
                         saveFileAs()
                     }
+                    item("Close").action {
+                        closeFile()
+                    }
                 }
                 menu("View") {
                     item("Move to", "Shortcut+G").action {
@@ -344,12 +347,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
                 button {
                     removeWhen { saveLockProperty }
+                    tooltip("Unlocked - Changes will be written to file when pressing CTRL+S. Click to lock.")
                     graphic = internalResourceController.getAsSvg(InternalResource.LOCK_OPEN)
                 }.action {
                     saveLockProperty.set(true)
                 }
                 button {
                     removeWhen { saveLockProperty.not() }
+                    tooltip("Locked - CTRL+S will open a 'save as' dialog. Click to unlock.")
                     graphic = internalResourceController.getAsSvg(InternalResource.LOCK_CLOSED)
                 }.action {
                     saveLockProperty.set(false)
@@ -406,14 +411,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                 }
                 button("Close").action {
-                    file = null
-                    replaceText("")
-                    fullText = ""
-                    lineCount.bind(codeArea.paragraphs.sizeProperty())
-                    displayMode.set(DisplayMode.PLAIN)
-                    isDirty.set(false)
-                    statusTextProperty.set("")
-                    fileProgressProperty.set(-1.0)
+                    closeFile()
                 }
                 hbox(10) {
                     removeWhen { displayMode.isEqualTo(DisplayMode.DISK_PAGINATION) }
@@ -471,6 +469,17 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             event.consume()
         }
 
+    }
+
+    private fun closeFile() {
+        file = null
+        replaceText("")
+        fullText = ""
+        lineCount.bind(codeArea.paragraphs.sizeProperty())
+        displayMode.set(DisplayMode.PLAIN)
+        isDirty.set(false)
+        statusTextProperty.set("")
+        fileProgressProperty.set(-1.0)
     }
 
     private fun closeSearchAndReplace() {
