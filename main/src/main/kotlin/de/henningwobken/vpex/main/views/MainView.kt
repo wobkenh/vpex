@@ -27,6 +27,7 @@ import org.xml.sax.InputSource
 import tornadofx.*
 import java.io.*
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.text.NumberFormat
 import javax.xml.parsers.SAXParserFactory
 import javax.xml.transform.OutputKeys
@@ -96,7 +97,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var pageLineCounts = IntArray(0) // Line count of each page
     private var pageStartingLineCounts = IntArray(0) // For each page the number of lines before this page
     private val pageTotalLineCount = SimpleIntegerProperty(0)
-    private var textOperationLock = false // If set to true, ignore changes in code area for line counts / dirty detection
+    private var ignoreTextChanges = false // If set to true, ignore changes in code area for line counts / dirty detection
     private var dirtySinceLastSync = false
 
     init {
@@ -544,9 +545,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun replaceText(text: String) {
-        this.textOperationLock = true
+        this.ignoreTextChanges = true
         this.codeArea.replaceText(text)
-        this.textOperationLock = false
+        this.ignoreTextChanges = false
     }
 
     private fun checkForDisplayModeChange() {
@@ -563,7 +564,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 codeArea.replaceText("")
                 fullText = ""
                 moveToPage(1)
-                codeArea.isEditable = false
             }
         } else if (settings.pagination && max(this.fullText.length, this.codeArea.text.length) > settings.paginationThreshold) {
             // Should be pagination
@@ -581,7 +581,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 this.lineCount.bind(this.pageTotalLineCount)
                 this.isDirty.set(wasDirty)
             } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-                codeArea.isEditable = true
                 displayMode.set(DisplayMode.PAGINATION)
                 if (file != null) {
                     openFile(file)
@@ -595,7 +594,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 disablePagination()
             } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
                 displayMode.set(DisplayMode.PLAIN)
-                codeArea.isEditable = true
                 if (file != null) {
                     openFile(file)
                 }
@@ -667,10 +665,46 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         lastFindEnd = 0
         lastFindStart = 0
         hasFindProperty.set(false)
-        if (dirtySinceLastSync) {
-            if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+
+
+        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+
+            var wantsToSave = false
+            var saveDone = false
+
+            if (dirtySinceLastSync) {
                 logger.warn { "Changes will be lost." }
-            } else {
+                confirm("Unsaved changes", "Unsaved changes will be lost if you do not save.\nDo you want to save?", ButtonType.YES, actionFn = {
+                    wantsToSave = true
+                    saveFileAs { saveDone = true }
+                })
+            }
+
+            val mainView = this
+            runAsync {
+                if (wantsToSave) {
+                    while (!saveDone) {
+                        Thread.sleep(20)
+                    }
+                }
+                val file = getFile()
+                val destinationBuffer = ByteArray(pageSize)
+                val offset: Long = pageSize.toLong() * (page - 1)
+                val randomAccessFile = RandomAccessFile(file, "r")
+                randomAccessFile.seek(offset)
+                val read = randomAccessFile.read(destinationBuffer, 0, pageSize)
+                randomAccessFile.close()
+                Platform.runLater {
+                    mainView.maxPage.set(calcMaxPage())
+//                    mainView.calcLinesAllPages() // TODO: Line Numbering
+                    mainView.dirtySinceLastSync = false
+                    mainView.page.set(page)
+                    replaceText(String(destinationBuffer, 0, read))
+                }
+            }
+
+        } else {
+            if (dirtySinceLastSync) {
                 if (syncDirection == SyncDirection.TO_FULLTEXT) {
                     logger.info("Syncing CodeArea text to full text")
                     this.fullText = this.fullText.replaceRange((this.getPageIndex()) * pageSize, min(this.page.get() * pageSize, this.fullText.length), this.codeArea.text)
@@ -681,18 +715,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 this.calcLinesAllPages()
                 this.dirtySinceLastSync = false
             }
-        }
-        this.page.set(page)
-        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-            val file = getFile()
-            val destinationBuffer = ByteArray(pageSize)
-            val offset = pageSize * (page - 1)
-            val randomAccessFile = RandomAccessFile(file, "r")
-            randomAccessFile.seek(offset.toLong())
-            randomAccessFile.read(destinationBuffer, 0, pageSize)
-            randomAccessFile.close()
-            replaceText(String(destinationBuffer))
-        } else {
+            this.page.set(page)
             replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
         }
     }
@@ -1020,7 +1043,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun saveFile() {
         logger.info("Saving")
         val file = this.file
-        if (file != null && !saveLockProperty.get()) {
+        if (file != null && !saveLockProperty.get() && displayMode.get() != DisplayMode.DISK_PAGINATION) {
             val text = getFullText()
             fileWatcher?.ignore?.set(true)
             Files.write(file.toPath(), text.toByteArray())
@@ -1032,21 +1055,72 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
     }
 
-    private fun saveFileAs() {
+    private fun saveFileAs(onSaveCallback: (() -> Unit)? = null) {
         logger.info("Saving as")
         val fileChooser = FileChooser()
         fileChooser.title = "Save as"
         fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath).absoluteFile
         val file = fileChooser.showSaveDialog(FX.primaryStage)
         if (file != null) {
-            this.file = file
-            val text = getFullText()
-            fileWatcher?.ignore?.set(true)
-            Files.write(file.toPath(), text.toByteArray())
-            fileWatcher?.ignore?.set(false)
-            setFileTitle(file)
-            isDirty.set(false)
-            logger.info("Saved as")
+            if (displayMode.get() != DisplayMode.DISK_PAGINATION) {
+                val text = getFullText()
+                fileWatcher?.ignore?.set(true)
+                Files.write(file.toPath(), text.toByteArray())
+                fileWatcher?.ignore?.set(false)
+                this.file = file
+                setFileTitle(file)
+                isDirty.set(false)
+                logger.info("Saved as")
+            } else {
+                statusTextProperty.set("Saving")
+                fileProgressProperty.set(0.0)
+                Thread {
+                    val oldFile = this.file!! // Can't have disk pagination without file
+                    val oldFileLength = oldFile.length() * 1.0
+                    // We need a tmp file because the user might want to overwrite the file. (cant read from a file were writing to)
+                    val tmpFile = File.createTempFile("vpex-", ".tmp")
+                    val outputStream = FileOutputStream(tmpFile)
+
+                    val inputStream = TotalProgressInputStream(oldFile.inputStream()) {
+                        Platform.runLater {
+                            fileProgressProperty.set(it / oldFileLength)
+                        }
+                    }
+
+                    val currentPage = page.get()
+                    val pageSize = settingsController.getSettings().pageSize
+                    val buffer = ByteArray(pageSize)
+                    var page = 1
+                    var read = 0
+                    while (read >= 0) {
+                        if (page == currentPage) {
+                            outputStream.write(codeArea.text.toByteArray())
+                            read = inputStream.skip(pageSize.toLong()).toInt()
+                        } else {
+                            read = inputStream.read(buffer)
+                            if (read >= 0) {
+                                outputStream.write(buffer, 0, read)
+                            }
+                        }
+                        page++
+                    }
+
+                    fileWatcher?.ignore?.set(true)
+                    Files.move(tmpFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                    fileWatcher?.ignore?.set(false)
+
+
+                    this.file = file
+                    logger.info("Saved as")
+                    Platform.runLater {
+                        statusTextProperty.set("")
+                        fileProgressProperty.set(-1.0)
+                        setFileTitle(file)
+                        isDirty.set(false)
+                        onSaveCallback?.let { onSaveCallback() }
+                    }
+                }.start()
+            }
         }
     }
 
@@ -1071,7 +1145,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         setFileTitle(file)
         codeArea.replaceText("")
         fullText = ""
-        codeArea.isEditable = true
         val fileWatcher = FileWatcher(file) {
             Platform.runLater {
                 if (!isAskingForFileReload) {
@@ -1093,7 +1166,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             displayMode.set(DisplayMode.DISK_PAGINATION)
             moveToPage(1)
             maxPage.set(calcMaxPage())
-            codeArea.isEditable = false
         } else if (this.settingsController.getSettings().pagination) {
             this.fullText = file.readText()
             if (fullText.length > settingsController.getSettings().paginationThreshold) {
@@ -1150,7 +1222,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         else -> this.codeArea.text.length
                     }
             )
-            if (!this.textOperationLock) {
+            if (!this.ignoreTextChanges) {
                 // Only dirty if user changed something
                 this.isDirty.set(true)
                 this.dirtySinceLastSync = true
