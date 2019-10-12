@@ -91,10 +91,12 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                     removeWhen(hasErrorsProperty.or(workingProperty))
                     isFitToWidth = true
                     prefHeight = 450.0
-                    alignment = Pos.CENTER
+                    paddingTop = 20
+                    alignment = Pos.TOP_CENTER
+                    addClass(Styles.councilBackground)
                     hbox(50) {
                         addClass(Styles.card)
-                        paddingAll = 50.0
+                        paddingAll = 40.0
                         maxWidth = Region.USE_PREF_SIZE
                         maxHeight = Region.USE_PREF_SIZE
                         alignment = Pos.CENTER
@@ -108,7 +110,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                                 graphic.scaleY = 4.0
                             }
                         }
-                        vbox(40) {
+                        vbox(30) {
                             minWidth = Region.USE_PREF_SIZE
                             minHeight = Region.USE_PREF_SIZE
                             alignment = Pos.CENTER_LEFT

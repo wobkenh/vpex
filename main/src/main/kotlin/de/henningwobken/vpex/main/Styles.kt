@@ -1,13 +1,21 @@
 package de.henningwobken.vpex.main
 
+import de.henningwobken.vpex.main.controllers.InternalResourceController
+import de.henningwobken.vpex.main.model.InternalResource
 import javafx.geometry.Pos
+import javafx.geometry.Side
 import javafx.scene.Cursor
 import javafx.scene.effect.DropShadow
+import javafx.scene.layout.BackgroundPosition
+import javafx.scene.layout.BackgroundRepeat
 import javafx.scene.paint.Color
 import javafx.scene.text.FontWeight
 import tornadofx.*
 
 class Styles : Stylesheet() {
+
+    private val internalResourceController = InternalResourceController()
+
     companion object {
         // classes
         val unchanged by cssclass()
@@ -16,6 +24,7 @@ class Styles : Stylesheet() {
         val button by cssclass()
         val card by cssclass()
         val selectable by cssclass()
+        val councilBackground by cssclass()
 
         // effects
         val dropShadow: DropShadow = {
@@ -75,6 +84,11 @@ class Styles : Stylesheet() {
         selectable {
             backgroundColor += Color.TRANSPARENT
             backgroundInsets += box(0.px)
+        }
+        councilBackground {
+            backgroundImage += internalResourceController.getAsURI(InternalResource.COUNCIL_IMG)
+            backgroundRepeat += Pair(BackgroundRepeat.NO_REPEAT, BackgroundRepeat.NO_REPEAT)
+            backgroundPosition += BackgroundPosition(Side.LEFT, 0.5, true, Side.BOTTOM, 0.0, true) // bottom center
         }
 
     }

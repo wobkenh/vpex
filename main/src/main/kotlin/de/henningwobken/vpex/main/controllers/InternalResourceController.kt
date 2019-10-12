@@ -6,6 +6,7 @@ import de.henningwobken.vpex.main.model.InternalResource
 import javafx.scene.Group
 import javafx.scene.image.Image
 import tornadofx.*
+import java.net.URI
 
 class InternalResourceController : Controller() {
 
@@ -52,6 +53,11 @@ class InternalResourceController : Controller() {
     fun getAsResource(resource: InternalResource): String {
         return (Vpex::class.java.classLoader.getResource(resource.filename)
                 ?: throw RuntimeException("Could not find internal Resource " + resource.filename)).toExternalForm()
+    }
+
+    fun getAsURI(resource: InternalResource): URI {
+        return (Vpex::class.java.classLoader.getResource(resource.filename)
+                ?: throw RuntimeException("Could not find internal Resource " + resource.filename)).toURI()
     }
 
 }
