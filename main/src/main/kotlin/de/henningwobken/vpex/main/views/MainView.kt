@@ -684,7 +684,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             runAsync {
                 if (wantsToSave) {
                     while (!saveDone) {
-                        Thread.sleep(20)
+                        Thread.sleep(40)
                     }
                 }
                 val file = getFile()
@@ -698,6 +698,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     mainView.maxPage.set(calcMaxPage())
 //                    mainView.calcLinesAllPages() // TODO: Line Numbering
                     mainView.dirtySinceLastSync = false
+                    mainView.isDirty.set(false) // Changes were either saved or discarded
                     mainView.page.set(page)
                     replaceText(String(destinationBuffer, 0, read))
                 }
