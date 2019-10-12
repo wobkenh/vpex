@@ -6,7 +6,7 @@ import java.util.*
 
 class Settings(
         val openerBasePath: String,
-        val schemaBasePath: String,
+        val schemaBasePathList: List<String>,
         val wrapText: Boolean,
         val prettyPrintIndent: Int,
         val locale: Locale,

@@ -29,7 +29,7 @@ class SettingsController : Controller() {
         this.settings = settings
         val properties = Properties()
         properties.setProperty("openerBasePath", settings.openerBasePath)
-        properties.setProperty("schemaBasePath", settings.schemaBasePath)
+        properties.setProperty("schemaBasePath", settings.schemaBasePathList.joinToString(","))
         properties.setProperty("wrapText", settings.wrapText.toString())
         properties.setProperty("prettyPrintIndent", settings.prettyPrintIndent.toString())
         properties.setProperty("locale", settings.locale.toLanguageTag())
@@ -64,7 +64,7 @@ class SettingsController : Controller() {
             try {
                 Settings(
                         properties.getProperty("openerBasePath", "./"),
-                        properties.getProperty("schemaBasePath", "./"),
+                        properties.getProperty("schemaBasePath", "./").split(","),
                         properties.getProperty("wrapText", "true") == "true",
                         properties.getProperty("prettyPrintIndent", "4").toInt(),
                         Locale.forLanguageTag(properties.getProperty("locale", "en")),
@@ -127,17 +127,17 @@ class SettingsController : Controller() {
     private fun getDefaultSettings(): Settings =
             Settings(
                     "./",
-                    "./",
+                    listOf("./"),
                     true,
                     4,
                     Locale.ENGLISH,
                     true,
                     1000000,
                     30000000,
-                    false,
+                    true,
                     "",
                     null,
-                    false,
+                    true,
                     false,
                     true,
                     500,
@@ -153,10 +153,12 @@ class SettingsController : Controller() {
             val errorMessage = "Opener base path ${openerBaseFile.absolutePath} is not a directory or does not exist. Please replace it in the settings."
             showAlert(Alert.AlertType.ERROR, "Directory does not exist", errorMessage)
         }
-        val schemaBaseFile = File(settings.schemaBasePath).absoluteFile
-        if (!schemaBaseFile.exists() || !schemaBaseFile.isDirectory) {
-            val errorMessage = "Schema base path ${schemaBaseFile.absolutePath} is not a directory or does not exist. Please replace it in the settings."
-            showAlert(Alert.AlertType.ERROR, "Directory does not exist", errorMessage)
+        for (schemaBasePath in settings.schemaBasePathList) {
+            val schemaBaseFile = File(schemaBasePath).absoluteFile
+            if (!schemaBaseFile.exists() || !schemaBaseFile.isDirectory) {
+                val errorMessage = "Schema base path ${schemaBaseFile.absolutePath} is not a directory or does not exist. Please replace it in the settings."
+                showAlert(Alert.AlertType.ERROR, "Directory does not exist", errorMessage)
+            }
         }
         if (settings.trustStore.isNotEmpty()) {
             val trustStoreFile = File(settings.trustStore).absoluteFile

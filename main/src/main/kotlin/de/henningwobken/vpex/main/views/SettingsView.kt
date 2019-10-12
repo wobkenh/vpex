@@ -8,18 +8,20 @@ import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleDoubleProperty
 import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleStringProperty
+import javafx.geometry.Pos
 import javafx.stage.DirectoryChooser
 import javafx.stage.FileChooser
 import javafx.util.Duration
 import javafx.util.StringConverter
 import tornadofx.*
+import java.io.File
 import java.util.*
 
 class SettingsView : View("VPEX - Einstellungen") {
     private val updateController: UpdateController by inject()
     private val settingsController: SettingsController by inject()
     private val wrapProperty = SimpleBooleanProperty()
-    private val schemaBasePathProperty = SimpleStringProperty()
+    private val schemaBasePathList = mutableListOf<String>()
     private val openerBasePathProperty = SimpleStringProperty()
     private val prettyPrintIndentProperty = SimpleIntegerProperty()
     private val localeProperty = SimpleStringProperty()
@@ -39,10 +41,12 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val trustStorePasswordProperty = SimpleStringProperty()
     private val insecureProperty = SimpleBooleanProperty()
 
+    private lateinit var addSchemaBasePath: (String) -> Unit
+
     init {
         val settings = settingsController.getSettings()
         wrapProperty.set(settings.wrapText)
-        schemaBasePathProperty.set(settings.schemaBasePath)
+        schemaBasePathList.addAll(settings.schemaBasePathList)
         openerBasePathProperty.set(settings.openerBasePath)
         prettyPrintIndentProperty.set(settings.prettyPrintIndent)
         localeProperty.set(settings.locale.toLanguageTag())
@@ -94,17 +98,41 @@ class SettingsView : View("VPEX - Einstellungen") {
                 }
                 fieldset("Files") {
                     field("Schema Root Location") {
-                        button("Change") {
-                            action {
-                                val directoryChooser = DirectoryChooser()
-                                directoryChooser.title = "Schema Base Path"
-                                val file = directoryChooser.showDialog(FX.primaryStage)
-                                if (file != null) {
-                                    schemaBasePathProperty.set(file.absolutePath)
+                        vbox {
+                            val basePathBox = vbox {}
+                            val addBasePathChild = { basePath: String ->
+                                basePathBox.children.add(hbox(10) {
+                                    alignment = Pos.CENTER_LEFT
+                                    paddingTop = 10
+                                    val hbox = this
+                                    button("Delete") {
+                                        action {
+                                            schemaBasePathList.remove(basePath)
+                                            basePathBox.children.remove(hbox)
+                                        }
+                                    }
+                                    label(basePath)
+                                })
+                            }
+                            for (schemaBasePath in schemaBasePathList) {
+                                addBasePathChild(schemaBasePath)
+                            }
+                            hbox {
+                                paddingTop = 10
+                                button("Add") {
+                                    action {
+                                        val directoryChooser = DirectoryChooser()
+                                        directoryChooser.title = "Schema Base Path"
+                                        directoryChooser.initialDirectory = File(openerBasePathProperty.get())
+                                        val file = directoryChooser.showDialog(FX.primaryStage)
+                                        if (file != null) {
+                                            schemaBasePathList.add(file.absolutePath)
+                                            addBasePathChild(file.absolutePath)
+                                        }
+                                    }
                                 }
                             }
                         }
-                        label(schemaBasePathProperty)
                     }
                     field("File Opener Start Location") {
                         button("Change") {
@@ -249,7 +277,7 @@ class SettingsView : View("VPEX - Einstellungen") {
     private fun saveSettings() {
         val settings = Settings(
                 openerBasePathProperty.get(),
-                schemaBasePathProperty.get(),
+                schemaBasePathList,
                 wrapProperty.get(),
                 prettyPrintIndentProperty.get(),
                 Locale.forLanguageTag(localeProperty.get()),

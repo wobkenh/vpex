@@ -4,8 +4,8 @@ import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.*
 import de.henningwobken.vpex.main.model.*
 import de.henningwobken.vpex.main.other.FileWatcher
-import de.henningwobken.vpex.main.xml.ProgressInputStream
 import de.henningwobken.vpex.main.xml.ProgressReader
+import de.henningwobken.vpex.main.xml.TotalProgressInputStream
 import de.henningwobken.vpex.main.xml.XmlFormattingService
 import javafx.application.Platform
 import javafx.beans.property.*
@@ -193,6 +193,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                     item("Schema", "Shortcut+J").action {
                         validateSchema()
+                    }
+                    item("Schema (Multiple Files)", "Shortcut+K").action {
+                        validateSchemaMultipleFiles()
                     }
                 }
                 menu("Settings") {
@@ -827,7 +830,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
                 val file = getFile()
                 val fileLength = file.length()
-                xmlReader.parse(InputSource(ProgressInputStream(file.inputStream()) {
+                xmlReader.parse(InputSource(TotalProgressInputStream(file.inputStream()) {
                     Platform.runLater {
                         fileProgressProperty.set(it / fileLength.toDouble())
                     }
@@ -835,7 +838,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             } else {
                 val text = getFullText()
                 val textLength = text.length
-                xmlReader.parse(InputSource(ProgressInputStream(text.byteInputStream()) {
+                xmlReader.parse(InputSource(TotalProgressInputStream(text.byteInputStream()) {
                     Platform.runLater {
                         fileProgressProperty.set(it / textLength.toDouble())
                     }
@@ -850,20 +853,38 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun validateSchema() {
-        statusTextProperty.set("Validating Schema")
         val resultFragment = find<SchemaResultFragment>()
-        resultFragment.gotoLineColumn = this::moveTo
+        resultFragment.gotoLineColumn = { line, column, _ -> moveTo(line, column) }
         resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
 
-        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+        val (inputStream: InputStream, length: Long) = if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
             val file = getFile()
-            val fileLength = file.length()
-            resultFragment.validateSchema(file.inputStream(), fileLength)
+            Pair(file.inputStream(), file.length())
         } else {
             val text = getFullText()
-            val textLength = text.length
-            resultFragment.validateSchema(text.byteInputStream(), textLength.toLong())
+            Pair(text.byteInputStream(), text.length.toLong())
         }
+        resultFragment.validateSchema(inputStream, length)
+    }
+
+    private fun validateSchemaMultipleFiles() {
+        val fileChooser = FileChooser()
+        fileChooser.title = "Choose files to validate"
+        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
+        val files = fileChooser.showOpenMultipleDialog(FX.primaryStage)
+        if (files.isEmpty()) {
+            return
+        }
+
+        val resultFragment = find<SchemaResultFragment>()
+        resultFragment.gotoLineColumn = { line, column, file ->
+            if (file != null) {
+                openFile(file)
+            }
+            moveTo(line, column)
+        }
+        resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
+        resultFragment.validateSchemaForFiles(files)
     }
 
     private fun prettyPrint() {
@@ -889,7 +910,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     val inputFile = getFile()
                     val inputFileLength = inputFile.length()
                     val xmlOutput = StreamResult(FileWriter(outputFile))
-                    val xmlInput = StreamSource(InputStreamReader(ProgressInputStream(inputFile.inputStream()) {
+                    val xmlInput = StreamSource(InputStreamReader(TotalProgressInputStream(inputFile.inputStream()) {
                         Platform.runLater {
                             fileProgressProperty.set(it / inputFileLength.toDouble())
                         }
@@ -912,7 +933,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val textLength = text.length
                 val stringWriter = StringWriter()
                 val xmlOutput = StreamResult(stringWriter)
-                val xmlInput = StreamSource(InputStreamReader(ProgressInputStream(text.byteInputStream()) {
+                val xmlInput = StreamSource(InputStreamReader(TotalProgressInputStream(text.byteInputStream()) {
                     Platform.runLater {
                         fileProgressProperty.set(it / textLength.toDouble())
                     }
@@ -1041,6 +1062,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun openFile(file: File) {
+        if (this.file != null) {
+            logger.info("Closing currently open file")
+            closeFile()
+        }
         logger.info("Opening file ${file.absolutePath}")
         this.file = file
         setFileTitle(file)
@@ -1054,7 +1079,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     confirmation("Update", "The file was updated externally. Reload?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
                         isAskingForFileReload = false
                         if (it.buttonData.isDefaultButton) {
-                            closeFile()
                             openFile(file)
                         }
                     })

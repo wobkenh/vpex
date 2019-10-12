@@ -26,7 +26,7 @@ class FileWatcher(private val file: File, private val onChange: () -> Unit) : Th
             FileSystems.getDefault().newWatchService().use { watcher ->
                 val path = file.toPath().parent
                 path.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY)
-                println("Registering file watcher")
+                logger.info("Registering file watcher")
                 while (!stop.get()) {
                     val key: WatchKey?
                     try {
@@ -41,7 +41,6 @@ class FileWatcher(private val file: File, private val onChange: () -> Unit) : Th
                     }
 
                     for (event in key.pollEvents()) {
-                        println("${event.kind()} ${event.count()}")
                         val kind = event.kind()
                         val filename = event.context()
                         if (kind === StandardWatchEventKinds.OVERFLOW) {
@@ -59,6 +58,7 @@ class FileWatcher(private val file: File, private val onChange: () -> Unit) : Th
                     }
                     yield()
                 }
+                logger.info("Stopping FileWatcher")
             }
         } catch (e: Throwable) {
             logger.warn { "Failure to watch file directory: ${e.message}" }

@@ -2,19 +2,13 @@ package de.henningwobken.vpex.main.xml
 
 import java.io.InputStream
 
-class ProgressInputStream(private val inputStream: InputStream, private val progressCallback: (bytesRead: Int) -> Unit) : InputStream() {
-
-    private var bytesRead = 0
+abstract class ProgressInputStream(protected val inputStream: InputStream) : InputStream() {
 
     override fun read(): Int {
         return inputStream.read()
     }
 
-    override fun read(b: ByteArray, off: Int, len: Int): Int {
-        bytesRead += len
-        progressCallback(bytesRead)
-        return inputStream.read(b, off, len)
-    }
+    abstract override fun read(b: ByteArray, off: Int, len: Int): Int
 
     override fun skip(n: Long): Long {
         return inputStream.skip(n)

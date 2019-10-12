@@ -4,12 +4,14 @@ import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.InternalResourceController
 import de.henningwobken.vpex.main.controllers.SettingsController
 import de.henningwobken.vpex.main.model.InternalResource
-import de.henningwobken.vpex.main.xml.ProgressInputStream
+import de.henningwobken.vpex.main.xml.DiffProgressInputStream
 import de.henningwobken.vpex.main.xml.ResourceResolver
+import de.henningwobken.vpex.main.xml.TotalProgressInputStream
 import de.henningwobken.vpex.main.xml.XmlErrorHandler
 import javafx.application.Platform
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleDoubleProperty
+import javafx.beans.property.SimpleIntegerProperty
 import javafx.geometry.Pos
 import javafx.scene.Node
 import javafx.scene.control.Alert
@@ -23,10 +25,14 @@ import org.xml.sax.SAXParseException
 import tornadofx.*
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.io.File
 import java.io.InputStream
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 import javax.xml.XMLConstants
 import javax.xml.transform.sax.SAXSource
 import javax.xml.validation.SchemaFactory
+import javax.xml.validation.Validator
 
 
 class SchemaResultFragment : Fragment("Schema Validation Result") {
@@ -34,32 +40,41 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     private val logger = KotlinLogging.logger {}
     private val settingsController by inject<SettingsController>()
     private val internalResourceController by inject<InternalResourceController>()
-    lateinit var gotoLineColumn: (line: Long, column: Long) -> Unit
+    lateinit var gotoLineColumn: (line: Long, column: Long, file: File?) -> Unit
 
     private enum class ValidationSeverity {
         WARNING, ERROR, FATAL
     }
 
-    private data class SAXExceptionWrapper(val exception: SAXParseException, val severity: ValidationSeverity)
+    private data class SAXExceptionWrapper(val exception: SAXParseException, val severity: ValidationSeverity, val file: File?)
 
     private val progressProperty = SimpleDoubleProperty(0.0)
     private val workingProperty = SimpleBooleanProperty(true)
     private val hasErrorsProperty = SimpleBooleanProperty(false)
+    // Compound binding needs to be created here. Otherwise it will fall out of scope and be garbage collected
+    private val doneWithoutErrorsProperty = workingProperty.not().and(hasErrorsProperty.not())
     private val exceptions = observableListOf<SAXExceptionWrapper>()
+    private val fileCountProperty = SimpleIntegerProperty(0)
 
     override val root = borderpane {
         prefWidth = 1000.0
         prefHeight = 500.0
         top = hbox {
-            removeWhen(hasErrorsProperty.not())
+            removeWhen(hasErrorsProperty.not().and(workingProperty.not()))
             addClass(Styles.primaryHeader)
-            label(exceptions.sizeProperty.stringBinding { "Found $it warnings or errors" }) {
+            label(exceptions.sizeProperty.stringBinding {
+                "Found $it warnings or errors"
+            }.concat(fileCountProperty.stringBinding {
+                val fileString = if (it == 1) "1 File" else "$it Files"
+                " in $fileString"
+            })) {
                 style = "-fx-text-fill: white"
             }
             label {
                 ViewHelper.fillHorizontal(this)
             }
             button("Copy All") {
+                removeWhen(hasErrorsProperty.not())
                 addClass(Styles.button)
                 action {
                     val stringSelection = StringSelection(exceptions.joinToString("\n") { exceptionToString(it) })
@@ -97,8 +112,10 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                             minWidth = Region.USE_PREF_SIZE
                             minHeight = Region.USE_PREF_SIZE
                             alignment = Pos.CENTER_LEFT
-                            label("The council has decided.")
-                            label("This xml file is schematically compliant.")
+                            label("The council has decided.") {
+                                style = "-fx-font-weight: bold;"
+                            }
+                            label("There are no syntactic or schematic errors.")
                         }
                     }
                 }
@@ -116,7 +133,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                     progressbar.style = "-fx-accent: red;"
                 }
             }
-            workingProperty.not().and(hasErrorsProperty.not()).onChange {
+            doneWithoutErrorsProperty.onChange {
                 if (it) {
                     progressbar.style = "-fx-accent: green;"
                 }
@@ -126,33 +143,16 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     }
 
     fun validateSchema(inputStream: InputStream, inputSize: Long) {
+        Platform.runLater {
+            fileCountProperty.set(1)
+        }
         Thread {
-            logger.info("Validating against schema")
-            val schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI)
-            schemaFactory.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
-            schemaFactory.errorHandler = XmlErrorHandler()
-            val schema = schemaFactory.newSchema()
-            val validator = schema.newValidator()
-            validator.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePath)
-            validator.errorHandler = object : ErrorHandler {
-                @Throws(SAXException::class)
-                override fun warning(exception: SAXParseException) {
-                    addException(SAXExceptionWrapper(exception, ValidationSeverity.WARNING))
-                }
-
-                @Throws(SAXException::class)
-                override fun fatalError(exception: SAXParseException) {
-                    logger.error { "Fatal Exception (e.g. syntax error). Abort validation." }
-                    addException(SAXExceptionWrapper(exception, ValidationSeverity.FATAL))
-                }
-
-                @Throws(SAXException::class)
-                override fun error(exception: SAXParseException) {
-                    addException(SAXExceptionWrapper(exception, ValidationSeverity.ERROR))
-                }
+            logger.info("Started validating against schema")
+            val validator = getValidator { exception, severity ->
+                addException(SAXExceptionWrapper(exception, severity, null))
             }
             try {
-                validator.validate(SAXSource(InputSource(ProgressInputStream(inputStream) {
+                validator.validate(SAXSource(InputSource(TotalProgressInputStream(inputStream) {
                     Platform.runLater {
                         progressProperty.set(it / inputSize.toDouble())
                     }
@@ -161,10 +161,79 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                 logger.warn { "Ignoring SAXParseException: ${exception.message}" }
             }
             Platform.runLater {
-                workingProperty.set(false)
+                logger.info("Finished validating against schema")
                 progressProperty.set(1.0)
+                workingProperty.set(false)
             }
         }.start()
+    }
+
+    fun validateSchemaForFiles(files: List<File>) {
+        Platform.runLater {
+            fileCountProperty.set(files.size)
+        }
+        Thread {
+            // Need to be in a new Thread as to not block ui while waiting
+            val bytesTotal = files.map { it.length() }.sum()
+            val bytesRead = AtomicLong(0)
+            val executor = Executors.newFixedThreadPool(10)
+            for (file in files) {
+                val worker = Runnable {
+                    logger.info("Started validating against schema for file ${file.absolutePath}")
+                    val validator = getValidator { exception, severity ->
+                        addException(SAXExceptionWrapper(exception, severity, file))
+                    }
+                    try {
+                        validator.validate(SAXSource(InputSource(DiffProgressInputStream(file.inputStream()) {
+                            bytesRead.addAndGet(it.toLong())
+                        })))
+                    } catch (exception: SAXParseException) {
+                        logger.warn { "Ignoring SAXParseException: ${exception.message}" }
+                    }
+                    logger.info("Finished validating against schema for file ${file.absolutePath}")
+                }
+                executor.execute(worker)
+            }
+            executor.shutdown()
+            while (!executor.isTerminated) {
+                Platform.runLater {
+                    progressProperty.set(bytesRead.get() / (bytesTotal.toDouble()))
+                }
+                Thread.sleep(20)
+            }
+            logger.info { "Finished all validations" }
+            Platform.runLater {
+                progressProperty.set(1.0)
+                workingProperty.set(false)
+            }
+        }.start()
+    }
+
+    private fun getValidator(onException: (exception: SAXParseException, severity: ValidationSeverity) -> Unit): Validator {
+        val schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI)
+        schemaFactory.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePathList)
+        schemaFactory.errorHandler = XmlErrorHandler()
+        val schema = schemaFactory.newSchema()
+        val validator = schema.newValidator()
+        validator.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePathList)
+        validator.errorHandler = object : ErrorHandler {
+            @Throws(SAXException::class)
+            override fun warning(exception: SAXParseException) {
+                onException(exception, ValidationSeverity.WARNING)
+            }
+
+            @Throws(SAXException::class)
+            override fun fatalError(exception: SAXParseException) {
+                logger.error { "Fatal Exception (e.g. syntax error). Abort validation." }
+                onException(exception, ValidationSeverity.FATAL)
+            }
+
+            @Throws(SAXException::class)
+            override fun error(exception: SAXParseException) {
+                onException(exception, ValidationSeverity.ERROR)
+            }
+        }
+        return validator
     }
 
     private fun getExceptionNode(exceptionWrapper: SAXExceptionWrapper): Node {
@@ -200,6 +269,12 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                 }
                 vbox {
                     ViewHelper.fillHorizontal(this)
+                    if (exceptionWrapper.file != null) {
+                        textfield {
+                            addClass(Styles.selectable)
+                            text = exceptionWrapper.file.absolutePath
+                        }
+                    }
                     textfield {
                         addClass(Styles.selectable)
                         if (exception.publicId != null || exception.systemId != null) {
@@ -226,7 +301,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                 addClass(Styles.button)
                 ViewHelper.fillVertical(this)
                 action {
-                    gotoLineColumn(exception.lineNumber.toLong(), 1) // TODO: Column number incorrect
+                    gotoLineColumn(exception.lineNumber.toLong(), 1, exceptionWrapper.file) // TODO: Column number incorrect
                 }
             }
         }
