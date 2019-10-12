@@ -31,10 +31,11 @@ class ResourceResolver(private val basePath: String) : LSResourceResolver {
                 })
             }
             if (namespaceURI != null && namespaceURI.isNotEmpty()) {
+                val foundPaths = files.map { it.absolutePath }
                 val alternativeName = namespaceURI.split(":").last()
                 files.addAll(File(basePath).walk().filter {
                     it.name.contains(alternativeName, true)
-                })
+                }.filter { !foundPaths.contains(it.absolutePath) }) // Prevent duplicates
             }
             inputStream = when {
                 files.size == 0 -> {
