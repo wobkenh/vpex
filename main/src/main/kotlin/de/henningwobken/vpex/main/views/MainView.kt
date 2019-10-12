@@ -100,6 +100,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var ignoreTextChanges = false // If set to true, ignore changes in code area for line counts / dirty detection
     private var dirtySinceLastSync = false
 
+    // Selection and cursor
+
+    private val selectionLength = SimpleIntegerProperty(0)
+    private val cursorLine = SimpleIntegerProperty(0)
+    private val cursorColumn = SimpleIntegerProperty(0)
+
     init {
         internalResourceController.getAsStrings(InternalResource.BANNER).forEach(::println)
         if (settingsController.getSettings().autoUpdate) {
@@ -341,6 +347,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             hbox(10) {
                 hgrow = Priority.ALWAYS
                 alignment = Pos.CENTER
+
+                /*
+                    Dirty Label
+                */
+
                 label {
                     paddingAll = 10.0
                     prefWidth = 110.0
@@ -354,6 +365,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         }
                     })
                 }
+
+                /*
+                    Save Lock
+                */
+
                 button {
                     removeWhen { saveLockProperty }
                     tooltip("Unlocked - Changes will be written to file when pressing CTRL+S. Click to lock.")
@@ -371,6 +387,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 label("") {
                     ViewHelper.fillHorizontal(this)
                 }
+
+                /*
+                    Status
+                */
+
                 label(statusTextProperty)
                 progressbar(downloadProgressProperty) {
                     removeWhen(downloadProgressProperty.lessThan(0))
@@ -378,6 +399,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 progressbar(fileProgressProperty) {
                     removeWhen(fileProgressProperty.lessThan(0))
                 }
+
+                /*
+                    Pagination
+                */
+
                 hbox(10) {
                     alignment = Pos.CENTER
                     removeWhen(displayMode.isEqualTo(DisplayMode.PLAIN))
@@ -422,18 +448,48 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 button("Close").action {
                     closeFile()
                 }
+
+                /*
+                     Character Stats
+                 */
+
                 hbox(10) {
-                    removeWhen { displayMode.isEqualTo(DisplayMode.DISK_PAGINATION) }
-                    paddingAll = 10.0
-                    label("Lines:")
-                    label(lineCount.stringBinding {
-                        numberFormat.format(it)
-                    })
-                    label("Chars:")
-                    label(charCountProperty.stringBinding {
-                        numberFormat.format(it)
-                    })
+                    hbox(5) {
+                        removeWhen { selectionLength.eq(0) }
+                        alignment = Pos.CENTER
+                        label("Selected:")
+                        label(selectionLength.stringBinding {
+                            numberFormat.format(it)
+                        })
+                        label("chars")
+                    }
+                    hbox(5) {
+                        alignment = Pos.CENTER
+                        label("Position:")
+                        label(cursorLine.stringBinding(cursorColumn) {
+                            "${numberFormat.format(cursorLine.get())}:${numberFormat.format(cursorColumn.get())}"
+                        })
+                    }
+                    hbox(5) {
+                        alignment = Pos.CENTER
+                        label("Lines:")
+                        label(lineCount.stringBinding {
+                            numberFormat.format(it)
+                        })
+                    }
+                    hbox(5) {
+                        alignment = Pos.CENTER
+                        label("Chars:")
+                        label(charCountProperty.stringBinding {
+                            numberFormat.format(it)
+                        })
+                    }
                 }
+
+                /*
+                     Memory Label
+                 */
+
                 var memoryLabel: Label? = null
                 label(allocatedMemory.stringBinding {
                     if (memoryLabel != null) {
@@ -1212,6 +1268,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val codeArea = CodeArea()
         logger.info("Setting wrap text to " + settingsController.getSettings().wrapText)
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
+        codeArea.selectionProperty().onChange {
+            selectionLength.set(it?.length ?: 0)
+        }
+        codeArea.caretPositionProperty().onChange {
+            var line = codeArea.currentParagraph
+            val column = codeArea.caretSelectionBind.columnPosition
+            if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
+                line += pageStartingLineCounts[getPageIndex()]
+            }
+            cursorLine.set(line)
+            cursorColumn.set(column)
+        }
         codeArea.plainTextChanges().subscribe {
             this.charCountProperty.set(
                     when {
