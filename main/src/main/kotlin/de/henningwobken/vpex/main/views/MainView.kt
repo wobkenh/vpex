@@ -668,23 +668,54 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.isDirty.set(wasDirty)
     }
 
+    /**
+     * Asynchronously rebuilds the complete page starting line counts
+     *
+     * IMPORTANT: The max page property need to be set BEFORE this method is called!
+     */
     private fun calcLinesAllPages() {
-        this.pageLineCounts = IntArray(this.maxPage.get())
-        this.pageStartingLineCounts = IntArray(this.maxPage.get())
-        val pageSize = this.settingsController.getSettings().pageSize
-        for (page in 1..maxPage.get()) {
-            val pageIndex = page - 1
-            pageLineCounts[pageIndex] = stringUtils.countLinesInString(this.fullText.substring(pageIndex * pageSize, min(this.fullText.length, page * pageSize)))
-        }
-        // for page 1 there are no previous pages
-        pageStartingLineCounts[0] = 0
-        for (page in 2..maxPage.get()) {
-            val pageIndex = page - 1
-            // minus 1 since page break introduces a "fake" line break
-            pageStartingLineCounts[pageIndex] = pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1] - 1
-        }
-        this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last())
-        logger.info("Set max lines to ${pageTotalLineCount.get()}")
+        statusTextProperty.set("Calculating Line Numbers")
+        Thread {
+            this.pageLineCounts = IntArray(this.maxPage.get())
+            this.pageStartingLineCounts = IntArray(this.maxPage.get())
+            val pageSize = this.settingsController.getSettings().pageSize
+            if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                val file = getFile()
+                val totalSize = file.length().toDouble()
+                val inputStream = TotalProgressInputStream(file.inputStream()) {
+                    Platform.runLater {
+                        fileProgressProperty.set(it / totalSize)
+                    }
+                }
+                val buffer = ByteArray(pageSize)
+                for (page in 1..this.maxPage.get()) {
+                    val pageIndex = page - 1
+                    val read = inputStream.read(buffer)
+                    pageLineCounts[pageIndex] = stringUtils.countLinesInString(String(buffer, 0, read))
+                }
+            } else {
+                for (page in 1..maxPage.get()) {
+                    val pageIndex = page - 1
+                    pageLineCounts[pageIndex] = stringUtils.countLinesInString(this.fullText.substring(pageIndex * pageSize, min(this.fullText.length, page * pageSize)))
+                }
+            }
+            // for page 1 there are no previous pages
+            pageStartingLineCounts[0] = 0
+            for (page in 2..maxPage.get()) {
+                val pageIndex = page - 1
+                // minus 1 since page break introduces a "fake" line break
+                pageStartingLineCounts[pageIndex] = pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1] - 1
+                Platform.runLater {
+                    fileProgressProperty.set(page / maxPage.get().toDouble())
+                }
+            }
+            Platform.runLater {
+                fileProgressProperty.set(-1.0)
+                statusTextProperty.set("")
+                this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last())
+            }
+            logger.info("Set max lines to ${pageTotalLineCount.get()}")
+        }.start()
     }
 
     private fun calcMaxPage(): Int {
@@ -728,7 +759,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             var wantsToSave = false
             var saveDone = false
 
-            if (dirtySinceLastSync) {
+            // TO_CODEAREA signals that the fulltext (i.e. the file) has changed
+            // Therefore, we only need to save in TO_FULLTEXT direction (e.g. when the user changes sth that is not saved yet)
+            if (dirtySinceLastSync && syncDirection == SyncDirection.TO_FULLTEXT) {
                 logger.warn { "Changes will be lost." }
                 confirm("Unsaved changes", "Unsaved changes will be lost if you do not save.\nDo you want to save?", ButtonType.YES, actionFn = {
                     wantsToSave = true
@@ -743,6 +776,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         Thread.sleep(40)
                     }
                 }
+
+                // At this point we can assume that the file content is up to date
+
                 val file = getFile()
                 val destinationBuffer = ByteArray(pageSize)
                 val offset: Long = pageSize.toLong() * (page - 1)
@@ -751,8 +787,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val read = randomAccessFile.read(destinationBuffer, 0, pageSize)
                 randomAccessFile.close()
                 Platform.runLater {
-                    mainView.maxPage.set(calcMaxPage())
-//                    mainView.calcLinesAllPages() // TODO: Line Numbering
+                    if (mainView.dirtySinceLastSync) {
+                        mainView.maxPage.set(calcMaxPage())
+                        // TODO: In TO_FULLTEXT mode we only have to recalculate line breaks of all pages starting with the current page
+                        // All pages before that are unaffected
+                        mainView.calcLinesAllPages()
+                    }
                     mainView.dirtySinceLastSync = false
                     mainView.isDirty.set(false) // Changes were either saved or discarded
                     mainView.page.set(page)
@@ -1221,8 +1261,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (settings.diskPagination && file.length() > settings.diskPaginationThreshold * 1024 * 1024) {
             logger.info { "Opening file in disk pagination mode" }
             displayMode.set(DisplayMode.DISK_PAGINATION)
-            moveToPage(1)
-            maxPage.set(calcMaxPage())
+            dirtySinceLastSync = true
+            moveToPage(1, SyncDirection.TO_CODEAREA)
+            lineCount.bind(pageTotalLineCount)
         } else if (this.settingsController.getSettings().pagination) {
             this.fullText = file.readText()
             if (fullText.length > settingsController.getSettings().paginationThreshold) {
@@ -1274,9 +1315,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         codeArea.caretPositionProperty().onChange {
             var line = codeArea.currentParagraph
             val column = codeArea.caretSelectionBind.columnPosition
-            if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
+            if (displayMode.get() != DisplayMode.PLAIN) {
                 line += pageStartingLineCounts[getPageIndex()]
             }
+            // TODO: Line Number seems to be off by one for (disk) paginated files
             cursorLine.set(line)
             cursorColumn.set(column)
         }
@@ -1320,11 +1362,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         // Original: LineNumberFactory.get(codeArea)
         codeArea.paragraphGraphicFactory = PaginatedLineNumberFactory(codeArea) {
             // Needs to return the starting line count of the current page
-            if (displayMode.get() == DisplayMode.PAGINATION) {
-                pageStartingLineCounts[this.getPageIndex()]
-            } else {
-                0
-            } // TODO: Disk Pagination?
+            if (displayMode.get() != DisplayMode.PLAIN) {
+                val pageIndex = this.getPageIndex()
+                // Starting line count might not have been calculated yet
+                if (pageStartingLineCounts.size > pageIndex) {
+                    pageStartingLineCounts[pageIndex]
+                } else 0
+            } else 0
         }
 
         return codeArea
