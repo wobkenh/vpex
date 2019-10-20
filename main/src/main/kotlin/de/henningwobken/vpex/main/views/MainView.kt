@@ -17,6 +17,7 @@ import javafx.scene.input.TransferMode
 import javafx.scene.layout.BorderPane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
+import javafx.stage.DirectoryChooser
 import javafx.stage.FileChooser
 import javafx.stage.StageStyle
 import javafx.util.Duration
@@ -203,6 +204,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                     item("Schema (Multiple Files)", "Shortcut+K").action {
                         validateSchemaMultipleFiles()
+                    }
+                    item("Schema (Directory)", "Shortcut+Shift+K").action {
+                        validateSchemaDirectory()
                     }
                 }
                 menu("Settings") {
@@ -987,15 +991,33 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         resultFragment.validateSchema(inputStream, length)
     }
 
+    private fun validateSchemaDirectory() {
+        val directoryChooser = DirectoryChooser()
+        directoryChooser.title = "Choose directory to validate"
+        directoryChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
+        val directory = directoryChooser.showDialog(FX.primaryStage)
+        if (directory == null) {
+            return
+        }
+        val files = directory.walk().filter { it.isFile }.toList()
+        if (files.isEmpty()) {
+            return
+        }
+        validateSchemaForFiles(files)
+    }
+
     private fun validateSchemaMultipleFiles() {
         val fileChooser = FileChooser()
         fileChooser.title = "Choose files to validate"
         fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
         val files = fileChooser.showOpenMultipleDialog(FX.primaryStage)
-        if (files.isEmpty()) {
+        if (files == null || files.isEmpty()) {
             return
         }
+        validateSchemaForFiles(files)
+    }
 
+    private fun validateSchemaForFiles(files: List<File>) {
         val resultFragment = find<SchemaResultFragment>()
         resultFragment.gotoLineColumn = { line, column, file ->
             if (file != null) {
@@ -1318,8 +1340,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             if (displayMode.get() != DisplayMode.PLAIN) {
                 line += pageStartingLineCounts[getPageIndex()]
             }
-            // TODO: Line Number seems to be off by one for (disk) paginated files
-            cursorLine.set(line)
+            cursorLine.set(line + 1)
             cursorColumn.set(column)
         }
         codeArea.plainTextChanges().subscribe {

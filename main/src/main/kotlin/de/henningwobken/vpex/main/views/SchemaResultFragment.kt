@@ -31,6 +31,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import javax.xml.XMLConstants
 import javax.xml.transform.sax.SAXSource
+import javax.xml.validation.Schema
 import javax.xml.validation.SchemaFactory
 import javax.xml.validation.Validator
 
@@ -47,6 +48,9 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     }
 
     private data class SAXExceptionWrapper(val exception: SAXParseException, val severity: ValidationSeverity, val file: File?)
+
+    private val schema = getSchema()
+    private val schemaResolver = ResourceResolver(settingsController.getSettings().schemaBasePathList)
 
     private val progressProperty = SimpleDoubleProperty(0.0)
     private val workingProperty = SimpleBooleanProperty(true)
@@ -211,13 +215,16 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
         }.start()
     }
 
-    private fun getValidator(onException: (exception: SAXParseException, severity: ValidationSeverity) -> Unit): Validator {
+    private fun getSchema(): Schema {
         val schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI)
-        schemaFactory.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePathList)
+        schemaFactory.resourceResolver = schemaResolver
         schemaFactory.errorHandler = XmlErrorHandler()
-        val schema = schemaFactory.newSchema()
+        return schemaFactory.newSchema()
+    }
+
+    private fun getValidator(onException: (exception: SAXParseException, severity: ValidationSeverity) -> Unit): Validator {
         val validator = schema.newValidator()
-        validator.resourceResolver = ResourceResolver(settingsController.getSettings().schemaBasePathList)
+        validator.resourceResolver = schemaResolver
         validator.errorHandler = object : ErrorHandler {
             @Throws(SAXException::class)
             override fun warning(exception: SAXParseException) {

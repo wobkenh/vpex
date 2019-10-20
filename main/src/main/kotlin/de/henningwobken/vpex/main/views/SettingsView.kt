@@ -41,8 +41,6 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val trustStorePasswordProperty = SimpleStringProperty()
     private val insecureProperty = SimpleBooleanProperty()
 
-    private lateinit var addSchemaBasePath: (String) -> Unit
-
     init {
         val settings = settingsController.getSettings()
         wrapProperty.set(settings.wrapText)
