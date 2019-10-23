@@ -1478,7 +1478,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 allFinds.addAll(searchAndReplaceController.findAll(fullText, searchText, interpreterMode, ignoreCase))
                 callback(allFinds)
             }
-            allFindsSize.set(allFinds.size)
+            Platform.runLater {
+                allFindsSize.set(allFinds.size)
+            }
         }.start()
     }
 
