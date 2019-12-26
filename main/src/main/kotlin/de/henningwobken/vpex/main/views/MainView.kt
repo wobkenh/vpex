@@ -88,6 +88,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val searchDirection = SimpleObjectProperty<Any>()
     private val textInterpreterMode = SimpleObjectProperty<Any>()
     private val ignoreCaseProperty = SimpleBooleanProperty(false)
+    // Disk Pagination only: Page Switch is done async, so we might need to wait with ui changes till after the change
+    // e.g. on find next
+    private var isOnCorrectPage = false
 
     // Pagination
     private val displayMode = SimpleObjectProperty<DisplayMode>(DisplayMode.PLAIN)
@@ -799,8 +802,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                     mainView.dirtySinceLastSync = false
                     mainView.isDirty.set(false) // Changes were either saved or discarded
-                    mainView.page.set(page)
                     replaceText(String(destinationBuffer, 0, read))
+                    mainView.page.set(page)
+                    isOnCorrectPage = true
                 }
             }
 
@@ -889,29 +893,50 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val page = getPageOfIndex(index)
                 if (page != this.page.get()) {
                     moveToPage(page)
+                } else {
+                    isOnCorrectPage = true
                 }
-                val inPageIndex: Int = (index - ((this.getPageIndex()) * this.settingsController.getSettings().pageSize)).toInt()
+                val inPageIndex: Int = (index - ((page - 1) * this.settingsController.getSettings().pageSize)).toInt()
                 if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
                     // In Disk Pagination, the index refers to bytes, not characters
-                    // Assuming at least 1 byte per character, we can start at string byte length and work our way backwards
-                    var charIndex = min(inPageIndex, codeArea.text.length)
-                    var byteCount = codeArea.text.substring(0, charIndex).toByteArray().size
-                    while (true) {
-                        if (byteCount == inPageIndex) {
-                            break
+                    // Problem: In Disk Pagination Mode, the page switch is done async because the user might need
+                    // to confirm that he really wants to switch the page (text needs to be saved to disk or changes would be lost)
+                    // so we have to wait until the page was actually switched
+                    // and THEN we can move
+                    val mainView = this
+                    runAsync {
+                        while (!isOnCorrectPage) {
+                            Thread.sleep(40)
                         }
-                        val codePoint = codeArea.text.codePointAt(charIndex)
-                        byteCount -=
-                                when {
-                                    codePoint <= 0x7F -> 1
-                                    codePoint <= 0x7FF -> 2
-                                    codePoint <= 0xFFFF -> 3
-                                    codePoint <= 0x1FFFFF -> 4
-                                    else -> 0
-                                }
-                        charIndex--
+                        val charIndex = String(codeArea.text.toByteArray().copyOfRange(0, inPageIndex)).length
+                        Platform.runLater {
+                            mainView.moveToLineColumn(0, charIndex)
+                        }
                     }
-                    this.moveToLineColumn(0, charIndex)
+
+                    // Assuming at least 1 byte per character, we can start at string byte length and work our way backwards
+//                    var charIndex = min(inPageIndex, codeArea.text.length)
+//                    var byteCount = codeArea.text.substring(0, charIndex).toByteArray().size
+//                    // TODO: Check if inPageIndex + findlength < byteCount
+////                    if (inPageIndex + ) {
+////
+////                    }
+//                    while (true) {
+//                        if (byteCount == inPageIndex) {
+//                            break
+//                        }
+//                        val codePoint = codeArea.text.codePointAt(charIndex)
+//                        byteCount -=
+//                                when {
+//                                    codePoint <= 0x7F -> 1
+//                                    codePoint <= 0x7FF -> 2
+//                                    codePoint <= 0xFFFF -> 3
+//                                    codePoint <= 0x1FFFFF -> 4
+//                                    else -> 0
+//                                }
+//                        charIndex--
+//                    }
+//                    this.moveToLineColumn(0, charIndex)
                 } else {
                     this.moveToLineColumn(0, inPageIndex)
                 }
@@ -1614,17 +1639,30 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
         // Move to search result
         if (find != null) {
+            isOnCorrectPage = false
             moveToIndex(find.start)
-            Platform.runLater {
-                val findStart = codeArea.anchor
-                val findLength = find.end - find.start
-                val findEnd = codeArea.anchor + findLength.toInt()
-                codeArea.clearStyle(lastFindStart, lastFindEnd)
-                // Search Result may be split by two pages, so cap at text length
-                codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
-                lastFindStart = findStart
-                lastFindEnd = findEnd
-                this.hasFindProperty.set(true)
+            val updateHighlighting: () -> Unit = {
+                Platform.runLater {
+                    val findStart = codeArea.anchor
+                    val findLength = find.end - find.start
+                    val findEnd = codeArea.anchor + findLength.toInt()
+                    codeArea.clearStyle(lastFindStart, lastFindEnd)
+                    // Search Result may be split by two pages, so cap at text length
+                    codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
+                    lastFindStart = findStart
+                    lastFindEnd = findEnd
+                    this.hasFindProperty.set(true)
+                }
+            }
+            if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                runAsync {
+                    while (!isOnCorrectPage) {
+                        Thread.sleep(40)
+                    }
+                    updateHighlighting()
+                }
+            } else {
+                updateHighlighting()
             }
         } else {
             // TODO: first enter => overlay at bottom right saying there are no more results and fading out after x seconds
