@@ -1590,44 +1590,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
         // Search
         val find: Find? = if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-            // We can't load full text into memory
-            // therefore, we have to go page by page
-            // this means that page breaks might hide/split search results
-            // to counter this, a pageOverlap is introduced which will cause the searches to overlap
-            val pageOverlap = max(100, searchText.length)
-            // We dont want page overlap on our first search. Add it here so it gets substracted in the iteration
-            var fileOffset = (offset + skipLastFindOffset).toLong() + pageOverlap
-            val file = RandomAccessFile(file, "r")
-            val buffer = ByteArray(this.settingsController.getSettings().pageSize)
-            var tmpFind: Find? = null
-            while (true) {
-                file.seek(fileOffset - pageOverlap)
-                val read = file.read(buffer)
-                if (read == -1) {
-                    break
-                }
-                val string = String(buffer, 0, read)
-                tmpFind = searchAndReplaceController.findNext(string, searchText, 0,
-                        searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
-                if (tmpFind != null) {
-                    // If the file is unicode, one byte != one character
-                    // Since we search through the file in pages of byte arrays, there is no way to know
-                    // what character number we are at right now.
-                    // Therefore, convert the char indices to byte indices
-                    // If this solution is causing performance problems, refer to the following SO Thread:
-                    // https://stackoverflow.com/questions/27651543/character-index-to-and-from-byte-index
-                    val cursorPosition = fileOffset - pageOverlap
-                    // Bytes before the find
-                    val prefixByteLength = string.substring(0, tmpFind.start.toInt()).toByteArray().size
-                    // Bytes of the find
-                    val findByteLength = string.substring(tmpFind.start.toInt(), tmpFind.end.toInt()).toByteArray().size
-                    tmpFind = Find(prefixByteLength + cursorPosition, prefixByteLength + findByteLength + cursorPosition)
-                    break
-                }
-                fileOffset += read
-            }
-            tmpFind
-
+            val file = file
+            if (file != null) {
+                val pageSize = this.settingsController.getSettings().pageSize
+                searchAndReplaceController.findNextFromDisk(file, searchText, offset + skipLastFindOffset,
+                        pageSize, searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
+            } else null
         } else {
             val fullText = getFullText()
             searchAndReplaceController.findNext(fullText, searchText, offset + skipLastFindOffset,
