@@ -178,6 +178,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Search", "Shortcut+F").action {
                         showReplaceProperty.set(false)
                         showFindProperty.set(true)
+                        if (!codeArea.selectedText.isNullOrBlank()) {
+                            findTextField.text = codeArea.selectedText
+                        }
                         findTextField.requestFocus()
                         findTextField.selectAll()
                     }
@@ -194,6 +197,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Replace", "Shortcut+R").action {
                         showReplaceProperty.set(true)
                         showFindProperty.set(false)
+                        if (!codeArea.selectedText.isNullOrBlank()) {
+                            findTextField.text = codeArea.selectedText
+                        }
                         findTextField.requestFocus()
                         findTextField.selectAll()
                     }
