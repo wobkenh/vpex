@@ -6,6 +6,7 @@ import javafx.scene.layout.Region
 import mu.KotlinLogging
 import tornadofx.*
 import java.io.File
+import java.nio.file.Files
 import java.util.*
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
@@ -15,10 +16,60 @@ import javax.net.ssl.X509TrustManager
 class SettingsController : Controller() {
     private val logger = KotlinLogging.logger {}
     private val configFile = File(System.getProperty("user.home") + "/.vpex/config.properties")
+    private val openerBasePathFile = File(System.getProperty("user.home") + "/.vpex/basepath")
     private var settings: Settings
+    private var openerBasePath: String = "./"
 
     init {
         settings = loadSettings()
+        loadOpenerBasePath()
+    }
+
+    fun getOpenerBasePath(): String {
+        return this.openerBasePath;
+    }
+
+    fun setOpenerBasePath(openerBasePath: String) {
+        saveOpenerBasePath(openerBasePath)
+    }
+
+    private fun loadOpenerBasePath() {
+        if (!openerBasePathFile.exists()) {
+            logger.info("openerBasePath File does not exist")
+            saveOpenerBasePath("./")
+        } else if (openerBasePathFile.isDirectory) {
+            showAlert(Alert.AlertType.WARNING, "Opener Path", "Opener path file "
+                    + openerBasePathFile.absolutePath
+                    + " is a directory, but needs to be a file. Please delete the directory."
+            )
+        } else {
+            val lines = Files.readAllLines(openerBasePathFile.toPath())
+            if (lines.isEmpty()) {
+                logger.info("openerBasePath File is empty")
+                saveOpenerBasePath("./")
+            } else {
+                this.openerBasePath = Files.readAllLines(openerBasePathFile.toPath())[0];
+            }
+        }
+        val file = File(this.openerBasePath)
+        if (!file.exists()) {
+            logger.warn("OpenerBasePath {} does not exist. Resetting to default.", this.openerBasePath)
+            saveOpenerBasePath("./")
+        } else if (!file.isDirectory) {
+            logger.warn("OpenerBasePath {} is not a directory. Resetting to default.", this.openerBasePath)
+            saveOpenerBasePath("./")
+        }
+        logger.debug("openerBasePath is {}", openerBasePath)
+    }
+
+    private fun saveOpenerBasePath(openerBasePath: String) {
+        if (openerBasePathFile.isDirectory) {
+            logger.warn("Cant write openerBasePath to file because it is a directory")
+        } else {
+            logger.debug("Writing openerBasePath {} to file at {}", openerBasePath, openerBasePathFile.absolutePath)
+            Files.write(openerBasePathFile.toPath(), listOf(openerBasePath))
+            this.openerBasePath = openerBasePath
+        }
     }
 
     fun getSettings(): Settings {
@@ -28,7 +79,6 @@ class SettingsController : Controller() {
     fun saveSettings(settings: Settings) {
         this.settings = settings
         val properties = Properties()
-        properties.setProperty("openerBasePath", settings.openerBasePath)
         properties.setProperty("schemaBasePath", settings.schemaBasePathList.joinToString(","))
         properties.setProperty("wrapText", settings.wrapText.toString())
         properties.setProperty("prettyPrintIndent", settings.prettyPrintIndent.toString())
@@ -63,7 +113,6 @@ class SettingsController : Controller() {
             properties.load(configFile.inputStream())
             try {
                 Settings(
-                        properties.getProperty("openerBasePath", "./"),
                         properties.getProperty("schemaBasePath", "./").split(","),
                         properties.getProperty("wrapText", "true") == "true",
                         properties.getProperty("prettyPrintIndent", "4").toInt(),
@@ -126,7 +175,6 @@ class SettingsController : Controller() {
 
     private fun getDefaultSettings(): Settings =
             Settings(
-                    "./",
                     listOf("./"),
                     true,
                     4,
@@ -146,13 +194,7 @@ class SettingsController : Controller() {
                     false
             )
 
-
     private fun validateSettings(settings: Settings) {
-        val openerBaseFile = File(settings.openerBasePath).absoluteFile
-        if (!openerBaseFile.exists() || !openerBaseFile.isDirectory) {
-            val errorMessage = "Opener base path ${openerBaseFile.absolutePath} is not a directory or does not exist. Please replace it in the settings."
-            showAlert(Alert.AlertType.ERROR, "Directory does not exist", errorMessage)
-        }
         for (schemaBasePath in settings.schemaBasePathList) {
             val schemaBaseFile = File(schemaBasePath).absoluteFile
             if (!schemaBaseFile.exists() || !schemaBaseFile.isDirectory) {

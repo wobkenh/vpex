@@ -45,7 +45,6 @@ class SettingsView : View("VPEX - Einstellungen") {
         val settings = settingsController.getSettings()
         wrapProperty.set(settings.wrapText)
         schemaBasePathList.addAll(settings.schemaBasePathList)
-        openerBasePathProperty.set(settings.openerBasePath)
         prettyPrintIndentProperty.set(settings.prettyPrintIndent)
         localeProperty.set(settings.locale.toLanguageTag())
         paginationProperty.set(settings.pagination)
@@ -132,19 +131,6 @@ class SettingsView : View("VPEX - Einstellungen") {
                             }
                         }
                     }
-                    field("File Opener Start Location") {
-                        button("Change") {
-                            action {
-                                val directoryChooser = DirectoryChooser()
-                                directoryChooser.title = "File Opener Base Path"
-                                val file = directoryChooser.showDialog(FX.primaryStage)
-                                if (file != null) {
-                                    openerBasePathProperty.set(file.absolutePath)
-                                }
-                            }
-                        }
-                        label(openerBasePathProperty)
-                    }
                     field("Lock save operations") {
                         tooltip("When save lock is activated, you will not be able to overwrite the file currently open. (Save as is still possible)")
                         checkbox("Disables 'save' in favor of 'save as'", saveLockProperty)
@@ -188,7 +174,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                             prefWidth = 100.0
                             maxWidth = 100.0
                         }
-                        label("MB")
+                        label("MiB")
                     }
                 }
                 fieldset("Updates") {
@@ -274,7 +260,6 @@ class SettingsView : View("VPEX - Einstellungen") {
 
     private fun saveSettings() {
         val settings = Settings(
-                openerBasePathProperty.get(),
                 schemaBasePathList,
                 wrapProperty.get(),
                 prettyPrintIndentProperty.get(),

@@ -26,7 +26,7 @@ class FileWatcher(private val file: File, private val onChange: () -> Unit) : Th
             FileSystems.getDefault().newWatchService().use { watcher ->
                 val path = file.toPath().parent
                 path.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY)
-                logger.info("Registering file watcher")
+                logger.info("Registering file watcher on {}", path.toString())
                 while (!stop.get()) {
                     val key: WatchKey?
                     try {

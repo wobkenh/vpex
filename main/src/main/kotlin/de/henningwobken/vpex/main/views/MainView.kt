@@ -629,10 +629,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (settings.diskPagination && file != null && file.length() > settings.diskPaginationThreshold * 1024 * 1024) {
             // Should be disk pagination
             if (displayMode.get() == DisplayMode.PLAIN || displayMode.get() == DisplayMode.PAGINATION) {
+                logger.info("Switching to Disk Pagination")
                 displayMode.set(DisplayMode.DISK_PAGINATION)
                 codeArea.replaceText("")
                 fullText = ""
                 moveToPage(1)
+            } else {
+                logger.info("Already in correct mode (Disk Pagination)")
             }
         } else if (settings.pagination && max(this.fullText.length, this.codeArea.text.length) > settings.paginationThreshold) {
             // Should be pagination
@@ -654,18 +657,24 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 if (file != null) {
                     openFile(file)
                 }
+            } else {
+                logger.info("Already in correct mode (Pagination)")
             }
 
         } else {
             // Should be plain
             if (displayMode.get() == DisplayMode.PAGINATION) {
+                logger.info("Switching to Plain From Pagination")
                 displayMode.set(DisplayMode.PLAIN)
                 disablePagination()
             } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                logger.info("Switching to Plain From Disk Pagination")
                 displayMode.set(DisplayMode.PLAIN)
                 if (file != null) {
                     openFile(file)
                 }
+            } else {
+                logger.info("Already in correct mode (Plain)")
             }
         }
     }
@@ -1007,11 +1016,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun validateSchemaDirectory() {
         val directoryChooser = DirectoryChooser()
         directoryChooser.title = "Choose directory to validate"
-        directoryChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
+        directoryChooser.initialDirectory = File(settingsController.getOpenerBasePath())
         val directory = directoryChooser.showDialog(FX.primaryStage)
         if (directory == null) {
             return
         }
+        settingsController.setOpenerBasePath(directory.absolutePath)
         val files = directory.walk().filter { it.isFile }.toList()
         if (files.isEmpty()) {
             return
@@ -1022,11 +1032,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun validateSchemaMultipleFiles() {
         val fileChooser = FileChooser()
         fileChooser.title = "Choose files to validate"
-        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath)
+        fileChooser.initialDirectory = File(settingsController.getOpenerBasePath())
         val files = fileChooser.showOpenMultipleDialog(FX.primaryStage)
         if (files == null || files.isEmpty()) {
             return
         }
+        settingsController.setOpenerBasePath(files[0].parentFile.absolutePath)
         validateSchemaForFiles(files)
     }
 
@@ -1161,8 +1172,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun choseFile(): File? {
         val fileChooser = FileChooser()
         fileChooser.title = "Chose destination"
-        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath).absoluteFile
-        return fileChooser.showSaveDialog(FX.primaryStage)
+        fileChooser.initialDirectory = File(settingsController.getOpenerBasePath()).absoluteFile
+        val file = fileChooser.showSaveDialog(FX.primaryStage)
+        if (file != null) {
+            settingsController.setOpenerBasePath(file.parentFile.absolutePath)
+        }
+        return file
     }
 
     private fun changeFullText(fullText: String) {
@@ -1191,9 +1206,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         logger.info("Saving as")
         val fileChooser = FileChooser()
         fileChooser.title = "Save as"
-        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath).absoluteFile
+        fileChooser.initialDirectory = File(settingsController.getOpenerBasePath()).absoluteFile
         val file = fileChooser.showSaveDialog(FX.primaryStage)
         if (file != null) {
+            settingsController.setOpenerBasePath(file.parentFile.absolutePath)
             if (displayMode.get() != DisplayMode.DISK_PAGINATION) {
                 val text = getFullText()
                 fileWatcher?.ignore?.set(true)
@@ -1260,9 +1276,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         logger.info("Opening new file")
         val fileChooser = FileChooser()
         fileChooser.title = "Open new File"
-        fileChooser.initialDirectory = File(settingsController.getSettings().openerBasePath).absoluteFile
+        fileChooser.initialDirectory = File(settingsController.getOpenerBasePath()).absoluteFile
         val file = fileChooser.showOpenDialog(FX.primaryStage)
         if (file != null && file.exists()) {
+            settingsController.setOpenerBasePath(file.parentFile.absolutePath)
             openFile(file)
         }
     }

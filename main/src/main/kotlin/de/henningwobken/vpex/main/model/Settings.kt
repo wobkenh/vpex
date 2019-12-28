@@ -5,7 +5,6 @@ import java.net.Proxy
 import java.util.*
 
 class Settings(
-        val openerBasePath: String,
         val schemaBasePathList: List<String>,
         val wrapText: Boolean,
         val prettyPrintIndent: Int,
