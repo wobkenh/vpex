@@ -1081,13 +1081,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                             fileProgressProperty.set(it / inputFileLength.toDouble())
                         }
                     }))
-                    transformer.transform(xmlInput, xmlOutput)
-                    fileWatcher?.ignore?.set(false)
-                    Platform.runLater {
-                        fileProgressProperty.set(-1.0)
-                        statusTextProperty.set("")
-                        openFile(outputFile)
+                    try {
+                        transformer.transform(xmlInput, xmlOutput)
+                    } catch (e: Exception) {
+                        reopenFile(outputFile)
+                        throw e
                     }
+                    reopenFile(outputFile)
                 }.start()
             } else {
                 logger.info { "User did not chose a valid file - aborting" }
@@ -1104,7 +1104,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         fileProgressProperty.set(it / textLength.toDouble())
                     }
                 }))
-                transformer.transform(xmlInput, xmlOutput)
+                try {
+                    transformer.transform(xmlInput, xmlOutput)
+                } catch (e: Exception) {
+                    Platform.runLater {
+                        fileProgressProperty.set(-1.0)
+                        statusTextProperty.set("")
+                    }
+                    throw e
+                }
                 Platform.runLater {
                     fileProgressProperty.set(-1.0)
                     statusTextProperty.set("")
@@ -1115,6 +1123,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                 }
             }.start()
+        }
+    }
+
+    /**
+     * (Re)opens the specified file after an operation
+     * @param file
+     */
+    private fun reopenFile(file: File) {
+        fileWatcher?.ignore?.set(false)
+        Platform.runLater {
+            fileProgressProperty.set(-1.0)
+            statusTextProperty.set("")
+            openFile(file)
         }
     }
 
