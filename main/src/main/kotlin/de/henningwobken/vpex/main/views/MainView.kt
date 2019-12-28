@@ -189,6 +189,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Pretty print", "Shortcut+Shift+F").action {
                         prettyPrint()
                     }
+                    item("Force pretty print").action {
+                        confirm("This pretty print is experimental", "Please check the result after using this.", ButtonType.OK, ButtonType.CANCEL, actionFn = {
+                            forcePrettyPrint()
+                        })
+                    }
                     item("Ugly print", "Shortcut+Alt+Shift+F").action {
                         confirm("Ugly print is experimental", "Please check the result after using this.", ButtonType.OK, ButtonType.CANCEL, actionFn = {
                             uglyPrint()
@@ -510,7 +515,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         val percentReserved = round((reservedMemory.get() / (maxMemory * 1.0)) * 100)
                         memoryLabel!!.style = "-fx-background-color: linear-gradient(to right, #0A92BF $percentAllocated%, #0ABFEE $percentAllocated%, #0ABFEE $percentReserved%, #eee $percentReserved%)"
                     }
-                    "${it}MB of ${maxMemory}MB"
+                    "${it}MiB of ${maxMemory}MiB"
                 }) {
                     paddingHorizontal = 5
                     isFillHeight = true
@@ -1053,6 +1058,70 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         resultFragment.validateSchemaForFiles(files)
     }
 
+    private fun forcePrettyPrint() {
+        statusTextProperty.set("Making this xml pretty like a princess")
+        formatPrint { xmlInput, xmlOutput ->
+            xmlFormattingService.format(xmlInput, xmlOutput, withNewLines = true, indentSize = 4)
+        }
+    }
+
+    private fun uglyPrint() {
+        statusTextProperty.set("Making this xml ugly like a Fiat Multipla")
+        formatPrint { xmlInput, xmlOutput ->
+            xmlFormattingService.format(xmlInput, xmlOutput, withNewLines = false, indentSize = 0)
+        }
+    }
+
+    private fun formatPrint(format: (xmlInput: ProgressReader, xmlOutput: Writer) -> Unit) {
+        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+            // Overwriting the existing file would probably be a bad idea
+            // So let the user chose a new one
+            val outputFile = choseFile()
+            if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
+                Thread {
+                    val xmlOutput = FileWriter(outputFile)
+                    val inputFile = getFile()
+                    val inputFileLength = inputFile.length().toDouble()
+                    val xmlInput = ProgressReader(FileReader(inputFile)) {
+                        Platform.runLater {
+                            fileProgressProperty.set(it / inputFileLength)
+                        }
+                    }
+                    format(xmlInput, xmlOutput)
+                    Platform.runLater {
+                        fileProgressProperty.set(-1.0)
+                        statusTextProperty.set("")
+                        openFile(outputFile)
+                    }
+                }.start()
+            } else {
+                logger.info { "User did not chose a valid file - aborting" }
+                statusTextProperty.set("")
+            }
+        } else {
+            Thread {
+                val text = getFullText()
+                val textLength = text.length.toDouble()
+                val xmlOutput = StringWriter()
+                val xmlInput = ProgressReader(StringReader(text)) {
+                    Platform.runLater {
+                        fileProgressProperty.set(it / textLength)
+                    }
+                }
+                format(xmlInput, xmlOutput)
+                Platform.runLater {
+                    fileProgressProperty.set(-1.0)
+                    statusTextProperty.set("")
+                    if (displayMode.get() == DisplayMode.PAGINATION) {
+                        changeFullText(xmlOutput.toString())
+                    } else {
+                        codeArea.replaceText(xmlOutput.toString())
+                    }
+                }
+            }.start()
+        }
+    }
+
     private fun prettyPrint() {
         statusTextProperty.set("Making this xml pretty like a princess")
 
@@ -1136,57 +1205,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             fileProgressProperty.set(-1.0)
             statusTextProperty.set("")
             openFile(file)
-        }
-    }
-
-    private fun uglyPrint() {
-        statusTextProperty.set("Making this xml ugly like a Fiat Multipla")
-        if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-            // Overwriting the existing file would probably be a bad idea
-            // So let the user chose a new one
-            val outputFile = choseFile()
-            if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
-                Thread {
-                    val xmlOutput = FileWriter(outputFile)
-                    val inputFile = getFile()
-                    val inputFileLength = inputFile.length().toDouble()
-                    val xmlInput = ProgressReader(FileReader(inputFile)) {
-                        Platform.runLater {
-                            fileProgressProperty.set(it / inputFileLength)
-                        }
-                    }
-                    xmlFormattingService.uglyPrint(xmlInput, xmlOutput)
-                    Platform.runLater {
-                        fileProgressProperty.set(-1.0)
-                        statusTextProperty.set("")
-                        openFile(outputFile)
-                    }
-                }.start()
-            } else {
-                logger.info { "User did not chose a valid file - aborting" }
-                statusTextProperty.set("")
-            }
-        } else {
-            Thread {
-                val text = getFullText()
-                val textLength = text.length.toDouble()
-                val xmlOutput = StringWriter()
-                val xmlInput = ProgressReader(StringReader(text)) {
-                    Platform.runLater {
-                        fileProgressProperty.set(it / textLength)
-                    }
-                }
-                xmlFormattingService.uglyPrint(xmlInput, xmlOutput)
-                Platform.runLater {
-                    fileProgressProperty.set(-1.0)
-                    statusTextProperty.set("")
-                    if (displayMode.get() == DisplayMode.PAGINATION) {
-                        changeFullText(xmlOutput.toString())
-                    } else {
-                        codeArea.replaceText(xmlOutput.toString())
-                    }
-                }
-            }.start()
         }
     }
 

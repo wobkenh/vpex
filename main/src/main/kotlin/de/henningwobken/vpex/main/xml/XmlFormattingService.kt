@@ -4,9 +4,10 @@ import de.henningwobken.vpex.main.model.XmlCharState
 import tornadofx.*
 import java.io.Reader
 import java.io.Writer
+import java.lang.Integer.max
 
 class XmlFormattingService : Controller() {
-    fun uglyPrint(input: Reader, output: Writer) {
+    fun format(input: Reader, output: Writer, withNewLines: Boolean = false, indentSize: Int = 0) {
         val bufferSize = 8192
 
         // --------------------
@@ -24,6 +25,18 @@ class XmlFormattingService : Controller() {
                 output.write(writeBuffer)
                 writeIndex = 0
             }
+        }
+        // Helper methods for writing into the buffer
+        val writeCharTimes = { char: Char, times: Int ->
+            for (i in 0 until times) {
+                writeChar(char)
+            }
+        }
+        val writeIndent = { indent: Int ->
+            if (withNewLines) {
+                writeChar('\n')
+            }
+            writeCharTimes(' ', indent)
         }
         val writeString = { string: String ->
             string.forEach { writeChar(it) }
@@ -63,6 +76,7 @@ class XmlFormattingService : Controller() {
         var state: XmlCharState = XmlCharState.BETWEEN
         var ignoreCharCount = 0
         var hasMore = true
+        var indent = 0
 
 
         // --------------------
@@ -99,13 +113,31 @@ class XmlFormattingService : Controller() {
                     XmlCharState.BETWEEN -> {
                         // By only appending '<', we effectively remove everything else between a closing and an opening tag
                         if (char == '<') {
-                            writeChar('<')
                             state = when (getChar(index + 1)) {
                                 '?' -> XmlCharState.XML_TAG
-                                '/' -> XmlCharState.CLOSING_TAG
-                                '!' -> if (getChar(index + 2) == '[') XmlCharState.CDATA else XmlCharState.COMMENT
-                                else -> XmlCharState.OPENING_TAG
+                                '/' -> {
+                                    indent = max(0, indent - indentSize)
+                                    writeIndent(indent)
+                                    XmlCharState.CLOSING_TAG
+                                }
+                                '!' -> if (getChar(index + 2) == '[') XmlCharState.CDATA else {
+                                    writeIndent(indent)
+                                    // comments do not change indentation
+                                    XmlCharState.COMMENT
+                                }
+                                else -> {
+                                    if (withNewLines) {
+                                        // we dont want to have a new line on the first opening tag
+                                        if (writeIndex > 0) {
+                                            writeChar('\n')
+                                        }
+                                    }
+                                    writeCharTimes(' ', indent)
+                                    indent += indentSize
+                                    XmlCharState.OPENING_TAG
+                                }
                             }
+                            writeChar('<')
                         }
                     }
                     XmlCharState.OPENING_TAG -> {
@@ -130,14 +162,21 @@ class XmlFormattingService : Controller() {
                             state = if (getChar(index + 1) == '/') {
                                 // This was really data
                                 writeString(dataText)
+                                indent = max(0, indent - indentSize)
                                 XmlCharState.CLOSING_TAG
                             } else {
-                                writeChar('<')
-                                if (getChar(index + 1) == '!') {
-                                    if (getChar(index + 2) == '[') XmlCharState.CDATA else XmlCharState.COMMENT
+                                val tmpState = if (getChar(index + 1) == '!') {
+                                    if (getChar(index + 2) == '[') XmlCharState.CDATA else {
+                                        writeIndent(indent)
+                                        XmlCharState.COMMENT
+                                    }
                                 } else {
+                                    writeIndent(indent)
+                                    indent += indentSize
                                     XmlCharState.OPENING_TAG
                                 }
+                                writeChar('<') // Write char needs to happen after newline + indent
+                                tmpState
                             }
                             dataText = ""
                         }
@@ -168,6 +207,11 @@ class XmlFormattingService : Controller() {
                     }
                 }
             }
+        }
+
+        if (withNewLines) {
+            // EOF Line
+            writeChar('\n')
         }
 
         // flush the buffer
