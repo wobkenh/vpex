@@ -24,6 +24,7 @@ class Styles : Stylesheet() {
         val button by cssclass()
         val card by cssclass()
         val selectable by cssclass()
+        val selectableMultiline by cssclass()
         val councilBackground by cssclass()
 
         // effects
@@ -84,6 +85,12 @@ class Styles : Stylesheet() {
         selectable {
             backgroundColor += Color.TRANSPARENT
             backgroundInsets += box(0.px)
+        }
+        selectableMultiline {
+            backgroundColor += Color.TRANSPARENT
+            backgroundInsets += box(0.px)
+            focusColor = Color.TRANSPARENT
+            textBoxBorder = Color.TRANSPARENT
         }
         councilBackground {
             backgroundImage += internalResourceController.getAsURI(InternalResource.COUNCIL_IMG)

@@ -12,10 +12,12 @@ import javafx.application.Platform
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleDoubleProperty
 import javafx.beans.property.SimpleIntegerProperty
+import javafx.beans.property.SimpleStringProperty
 import javafx.geometry.Pos
 import javafx.scene.Node
 import javafx.scene.control.Alert
 import javafx.scene.image.ImageView
+import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import mu.KotlinLogging
 import org.xml.sax.ErrorHandler
@@ -27,6 +29,7 @@ import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.io.File
 import java.io.InputStream
+import java.lang.Integer.min
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import javax.xml.XMLConstants
@@ -47,7 +50,9 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
         WARNING, ERROR, FATAL
     }
 
-    private data class SAXExceptionWrapper(val exception: SAXParseException, val severity: ValidationSeverity, val file: File?)
+    private class SAXExceptionWrapper(val exception: SAXParseException, val severity: ValidationSeverity, val file: File?) {
+        val message = SimpleStringProperty(exception.message)
+    }
 
     private val schema = getSchema()
     private val schemaResolver = ResourceResolver(settingsController.getSettings().schemaBasePathList)
@@ -58,7 +63,12 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     // Compound binding needs to be created here. Otherwise it will fall out of scope and be garbage collected
     private val doneWithoutErrorsProperty = workingProperty.not().and(hasErrorsProperty.not())
     private val exceptions = observableListOf<SAXExceptionWrapper>()
+    private val displayedExceptions = observableListOf<SAXExceptionWrapper>()
     private val fileCountProperty = SimpleIntegerProperty(0)
+    private val pageSize = 10
+    private val page = SimpleIntegerProperty(1)
+    private val maxPage = SimpleIntegerProperty(1)
+    private val pageDisplayProperty = SimpleIntegerProperty(1)
 
     override val root = borderpane {
         prefWidth = 1000.0
@@ -125,27 +135,83 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                         }
                     }
                 }
-                exceptions.onChange { exceptionChange ->
+                displayedExceptions.onChange { exceptionChange ->
                     if (exceptionChange.next()) {
+                        if (exceptionChange.wasRemoved()) {
+                            vbox.children.clear()
+                        }
                         vbox.children.addAll(exceptionChange.addedSubList.map { getExceptionNode(it) })
                     }
                 }
             }
         }
-        bottom = progressbar(progressProperty) {
-            val progressbar = this
-            hasErrorsProperty.onChange {
-                if (it) {
-                    progressbar.style = "-fx-accent: red;"
+        bottom = hbox {
+            progressbar(progressProperty) {
+                hgrow = Priority.ALWAYS
+                vgrow = Priority.ALWAYS
+                maxHeight = Double.MAX_VALUE
+                val progressbar = this
+                hasErrorsProperty.onChange {
+                    if (it) {
+                        progressbar.style = "-fx-accent: red;"
+                    }
+                }
+                doneWithoutErrorsProperty.onChange {
+                    if (it) {
+                        progressbar.style = "-fx-accent: green;"
+                    }
+                }
+                maxWidth = Double.MAX_VALUE
+            }
+            /*
+                Pagination
+            */
+            hbox(10) {
+                alignment = Pos.CENTER
+                removeWhen(exceptions.sizeProperty.lessThanOrEqualTo(pageSize))
+                button("<<") {
+                    disableWhen {
+                        page.isEqualTo(1)
+                    }
+                }.action {
+                    page.set(page.get() - 1)
+                }
+                hbox(5) {
+                    alignment = Pos.CENTER
+                    textfield(pageDisplayProperty) {
+                        page.onChange {
+                            displayPage(it)
+                            pageDisplayProperty.set(it)
+                        }
+                        prefWidth = 50.0
+                        maxWidth = 50.0
+                    }.action {
+                        val enteredPage = pageDisplayProperty.get()
+                        if (enteredPage < 1 || enteredPage > maxPage.get()) {
+                            pageDisplayProperty.set(page.get())
+                        } else {
+                            page.set(pageDisplayProperty.get())
+                        }
+                    }
+                    label("/")
+                    label(maxPage)
+                }
+                button(">>") {
+                    disableWhen {
+                        page.greaterThanOrEqualTo(maxPage)
+                    }
+                }.action {
+                    page.set(page.get() + 1)
                 }
             }
-            doneWithoutErrorsProperty.onChange {
-                if (it) {
-                    progressbar.style = "-fx-accent: green;"
-                }
-            }
-            maxWidth = Double.MAX_VALUE
         }
+    }
+
+    private fun displayPage(pageNumber: Int) {
+        displayedExceptions.clear()
+        val fromIndex = pageSize * (pageNumber - 1)
+        val tillIndex = min(exceptions.size, pageSize * pageNumber) - 1 // inclusive
+        displayedExceptions.addAll(exceptions.slice(IntRange(fromIndex, tillIndex)))
     }
 
     fun validateSchema(inputStream: InputStream, inputSize: Long) {
@@ -250,6 +316,8 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
         return hbox {
             paddingTop = 15
             paddingHorizontal = 15
+            // For multiline Text areas:
+            stylesheets.add(internalResourceController.getAsResource(InternalResource.TEXTAREA_CSS))
             hbox(10) {
                 ViewHelper.fillHorizontal(this)
                 addClass(Styles.card)
@@ -297,9 +365,9 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                         }
                         text += "at ${exception.lineNumber}:${exception.columnNumber}"
                     }
-                    textfield {
-                        addClass(Styles.selectable)
-                        text = exception.message
+                    textarea(exceptionWrapper.message) {
+                        addClass(Styles.selectableMultiline)
+                        prefRowCount = 1
                     }
                 }
             }
@@ -319,14 +387,35 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     private fun addException(exception: SAXExceptionWrapper) {
         logger.warn(exceptionToString(exception))
         Platform.runLater {
-            exceptions.add(exception)
-            hasErrorsProperty.set(true)
+            synchronized(exceptions) {
+                val existingException = exceptions.find { e ->
+                    e.exception.lineNumber == exception.exception.lineNumber
+                            && e.exception.columnNumber == exception.exception.columnNumber
+                            && e.severity == exception.severity
+                }
+                if (existingException != null) {
+                    existingException.message += System.lineSeparator() + exception.message.get()
+                } else {
+                    exceptions.add(exception)
+                    if (displayedExceptions.size < pageSize) {
+                        displayedExceptions.add(exception)
+                    }
+                    val pages = (exceptions.size + 1) / pageSize + 1
+                    if (pages > maxPage.get()) {
+                        maxPage.set(pages)
+                    }
+                    hasErrorsProperty.set(true)
+                }
+            }
         }
     }
 
     private fun exceptionToString(exceptionWrapper: SAXExceptionWrapper): String {
         val exception = exceptionWrapper.exception
-        return "${exceptionWrapper.severity} at ${exception.lineNumber}:${exception.columnNumber} for schema ${exception.publicId} ${exception.systemId}: ${exception.message}"
+        val prefix = "${exceptionWrapper.severity} at ${exception.lineNumber}:${exception.columnNumber} for schema ${exception.publicId} ${exception.systemId}:"
+        return exceptionWrapper.message.get().split("\n").joinToString("\n") {
+            "$prefix $it"
+        }
     }
 
 }

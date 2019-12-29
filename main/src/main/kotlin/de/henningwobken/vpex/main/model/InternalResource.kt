@@ -8,6 +8,7 @@ enum class InternalResource(val filename: String) {
     DONATE_IMG_WHITE("donate_img_white.png"), //
     DONATE_BUTTON("donate_button.gif"), //
     EDITOR_CSS("editor.css"), //
+    TEXTAREA_CSS("textarea.css"), //
     BANNER("banner.txt"), //
     COUNCIL_IMG("meeting-2789229_960_720.png"), //
 
