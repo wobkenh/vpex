@@ -1006,7 +1006,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun validateSchema() {
         val resultFragment = find<SchemaResultFragment>()
         resultFragment.gotoLineColumn = { line, column, _ -> moveTo(line, column) }
-        resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
+        val stage = resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
+        stage?.requestFocus()
 
         val (inputStream: InputStream, length: Long) = if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
             val file = getFile()
@@ -1054,7 +1055,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
             moveTo(line, column)
         }
-        resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
+        val stage = resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
+        stage?.requestFocus()
         resultFragment.validateSchemaForFiles(files)
     }
 

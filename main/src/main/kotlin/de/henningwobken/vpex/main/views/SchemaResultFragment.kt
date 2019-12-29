@@ -17,6 +17,7 @@ import javafx.geometry.Pos
 import javafx.scene.Node
 import javafx.scene.control.Alert
 import javafx.scene.image.ImageView
+import javafx.scene.input.KeyCode
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import mu.KotlinLogging
@@ -71,6 +72,11 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     private val pageDisplayProperty = SimpleIntegerProperty(1)
 
     override val root = borderpane {
+        setOnKeyReleased { keyEvent ->
+            if (keyEvent.code == KeyCode.ESCAPE) {
+                close()
+            }
+        }
         prefWidth = 1000.0
         prefHeight = 500.0
         top = hbox {
