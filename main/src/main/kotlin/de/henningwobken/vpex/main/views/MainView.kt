@@ -1488,6 +1488,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.lastFindEnd = 0
     }
 
+    /**
+     * Searches through the whole text in search for the current search term.
+     * All finds will be added to {@see #allFinds}.
+     * The callback will either be called once with all findings (plain/pagination)
+     * or once per page with all findings of that page (disk pagination)
+     */
     private fun searchAll(callback: (finds: List<Find>) -> Unit) {
         allFinds.clear()
 
@@ -1579,11 +1585,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun replaceAll() {
-        this.searchAll { } // TODO: Do replacements here?
-        if (allFinds.isEmpty()) {
-            logger.info("No Replacements made")
-            return
-        }
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
             // We need to read the original file page by page,
             // do the replacements on the fly
@@ -1595,17 +1596,27 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val stringBuilder = StringBuilder()
             val replacementText = this.replaceProperty.get()
             var lastEndIndex = 0
-            for (find in allFinds) {
-                stringBuilder.append(fulltext.substring(lastEndIndex, find.start.toInt()))
-                stringBuilder.append(replacementText)
-                lastEndIndex = find.end.toInt()
+
+            // Callback will be executed once with all findings async in a non-ui-thread
+            this.searchAll { finds ->
+                logger.debug("Replacing {} findings", finds.size)
+                for (find in finds) {
+                    stringBuilder.append(fulltext.substring(lastEndIndex, find.start.toInt()))
+                    stringBuilder.append(replacementText)
+                    lastEndIndex = find.end.toInt()
+                }
+                logger.debug("Replaced {} findings. Saving to textarea now.", finds.size)
+                Platform.runLater {
+                    stringBuilder.append(fulltext.substring(lastEndIndex))
+                    if (displayMode.get() == DisplayMode.PAGINATION) {
+                        changeFullText(stringBuilder.toString())
+                    } else {
+                        this.codeArea.replaceText(stringBuilder.toString())
+                    }
+                    logger.debug("Text replaced")
+                }
             }
-            stringBuilder.append(fulltext.substring(lastEndIndex))
-            if (displayMode.get() == DisplayMode.PAGINATION) { // TODO: Disk Pagination
-                changeFullText(stringBuilder.toString())
-            } else {
-                this.codeArea.replaceText(stringBuilder.toString())
-            }
+
         }
 
     }
