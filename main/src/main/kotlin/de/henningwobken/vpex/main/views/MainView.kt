@@ -4,6 +4,7 @@ import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.*
 import de.henningwobken.vpex.main.model.*
 import de.henningwobken.vpex.main.other.FileWatcher
+import de.henningwobken.vpex.main.other.VpexExecutor
 import de.henningwobken.vpex.main.xml.ProgressReader
 import de.henningwobken.vpex.main.xml.TotalProgressInputStream
 import de.henningwobken.vpex.main.xml.XmlFormattingService
@@ -65,6 +66,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private var fileWatcher: FileWatcher? = null
     private var isAskingForFileReload = false
+    private val vpexExecutor = VpexExecutor()
 
     // Memory monitor
     private val maxMemory = round(Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0).toLong()
@@ -150,6 +152,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 logger.info { "Set stop flag for memory monitor thread" }
             }
             fileWatcher?.stopThread()
+            vpexExecutor.shutdown()
         }
     }
 
@@ -332,7 +335,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         codeArea.replaceText(lastFindStart, lastFindEnd, replaceProperty.get())
                                     }
                                     button("Replace all") {
-                                        enableWhen { showReplaceProperty }
+                                        enableWhen { showReplaceProperty.and(vpexExecutor.isRunning.not()) }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         replaceAll()
@@ -407,6 +410,25 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
 
                 /*
+                    Status
+                */
+
+                label(statusTextProperty)
+                button("Cancel") {
+                    removeWhen { vpexExecutor.isRunning.not() }
+                }.action {
+                    vpexExecutor.cancel()
+                    statusTextProperty.set("")
+                    fileProgressProperty.set(-1.0)
+                }
+                progressbar(downloadProgressProperty) {
+                    removeWhen(downloadProgressProperty.lessThan(0))
+                }
+                progressbar(fileProgressProperty) {
+                    removeWhen(fileProgressProperty.lessThan(0))
+                }
+
+                /*
                     Disk Pagination Info
                  */
                 label("Disk") {
@@ -424,18 +446,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     """.trimIndent()
                     tooltip(tooltipText)
                     tooltip.isAutoHide = false
-                }
-
-                /*
-                    Status
-                */
-
-                label(statusTextProperty)
-                progressbar(downloadProgressProperty) {
-                    removeWhen(downloadProgressProperty.lessThan(0))
-                }
-                progressbar(fileProgressProperty) {
-                    removeWhen(fileProgressProperty.lessThan(0))
                 }
 
                 /*
@@ -1520,7 +1530,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val searchText = getSearchText()
         val interpreterMode = textInterpreterMode.get() as SearchTextMode
         val ignoreCase = ignoreCaseProperty.get()
-        Thread {
+        vpexExecutor.execute {
             if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
 
                 Platform.runLater {
@@ -1578,7 +1588,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             Platform.runLater {
                 allFindsSize.set(allFinds.size)
             }
-        }.start()
+        }
     }
 
     private fun highlightFinds(finds: List<Find>) {
