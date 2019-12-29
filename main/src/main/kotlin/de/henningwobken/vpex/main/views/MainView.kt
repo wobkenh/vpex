@@ -4,7 +4,6 @@ import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.*
 import de.henningwobken.vpex.main.model.*
 import de.henningwobken.vpex.main.other.FileWatcher
-import de.henningwobken.vpex.main.other.VpexExecutor
 import de.henningwobken.vpex.main.xml.ProgressReader
 import de.henningwobken.vpex.main.xml.TotalProgressInputStream
 import de.henningwobken.vpex.main.xml.XmlFormattingService
@@ -26,6 +25,7 @@ import mu.KotlinLogging
 import org.fxmisc.flowless.VirtualizedScrollPane
 import org.fxmisc.richtext.CodeArea
 import org.xml.sax.InputSource
+import org.xml.sax.SAXException
 import tornadofx.*
 import java.io.*
 import java.nio.file.Files
@@ -49,7 +49,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val updateController: UpdateController by inject()
     private val stringUtils: StringUtils by inject()
     private val xmlFormattingService: XmlFormattingService by inject()
-    private val searchAndReplaceController by inject<SearchAndReplaceController>()
+    private val searchAndReplaceController: SearchAndReplaceController by inject()
+    private val vpexExecutor: VpexExecutor by inject()
 
     private var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
@@ -66,7 +67,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private var fileWatcher: FileWatcher? = null
     private var isAskingForFileReload = false
-    private val vpexExecutor = VpexExecutor()
 
     // Memory monitor
     private val maxMemory = round(Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0).toLong()
@@ -216,13 +216,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     item("Syntax", "Shortcut+H").action {
                         validateSyntax()
                     }
-                    item("Schema", "Shortcut+J").action {
+                    item("Schema", "Shortcut+J") {
+                        enableWhen { vpexExecutor.isRunning.not() }
+                    }.action {
                         validateSchema()
                     }
-                    item("Schema (Multiple Files)", "Shortcut+K").action {
+                    item("Schema (Multiple Files)", "Shortcut+K") {
+                        enableWhen { vpexExecutor.isRunning.not() }
+                    }.action {
                         validateSchemaMultipleFiles()
                     }
-                    item("Schema (Directory)", "Shortcut+Shift+K").action {
+                    item("Schema (Directory)", "Shortcut+Shift+K") {
+                        enableWhen { vpexExecutor.isRunning.not() }
+                    }.action {
                         validateSchemaDirectory()
                     }
                 }
@@ -307,6 +313,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         findNext()
                                     }
                                     button("Find all") {
+                                        enableWhen { vpexExecutor.isRunning.not() }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         statusTextProperty.set("Searching")
@@ -322,6 +329,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         statusTextProperty.set("")
                                     }
                                     button("List all") {
+                                        enableWhen { vpexExecutor.isRunning.not() }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         // TODO: open popup with code snippets of matches
@@ -329,7 +337,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                 }
                                 vbox(5) {
                                     button("Replace this") {
-                                        enableWhen { hasFindProperty.and(showReplaceProperty) }
+                                        enableWhen { hasFindProperty.and(showReplaceProperty).and(vpexExecutor.isRunning.not()) }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         codeArea.replaceText(lastFindStart, lastFindEnd, replaceProperty.get())
@@ -341,6 +349,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         replaceAll()
                                     }
                                     button("Count") {
+                                        enableWhen { vpexExecutor.isRunning.not() }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         searchAll { }
@@ -1002,35 +1011,54 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun validateSyntax() {
         statusTextProperty.set("Validating Syntax")
-        Thread {
+        vpexExecutor.execute {
             logger.info("Validating Syntax...")
             val saxParserFactory = SAXParserFactory.newInstance()
             saxParserFactory.isNamespaceAware = true
             val saxParser = saxParserFactory.newSAXParser()
             val xmlReader = saxParser.xmlReader
-            if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-                val file = getFile()
-                val fileLength = file.length()
-                xmlReader.parse(InputSource(TotalProgressInputStream(file.inputStream()) {
+            try {
+                if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
+                    val file = getFile()
+                    val fileLength = file.length()
+                    xmlReader.parse(InputSource(TotalProgressInputStream(file.inputStream()) {
+                        if (Thread.currentThread().isInterrupted) {
+                            throw InterruptedException("Cancelled")
+                        }
+                        Platform.runLater {
+                            fileProgressProperty.set(it / fileLength.toDouble())
+                        }
+                    }))
+                } else {
+                    val text = getFullText()
+                    val textLength = text.length
+                    xmlReader.parse(InputSource(TotalProgressInputStream(text.byteInputStream()) {
+                        if (Thread.currentThread().isInterrupted) {
+                            throw InterruptedException("Cancelled")
+                        }
+                        Platform.runLater {
+                            fileProgressProperty.set(it / textLength.toDouble())
+                        }
+                    }))
+                }
+            } catch (e: SAXException) {
+                if (e.exception is InterruptedException) {
+                    logger.info { "Cancelling Syntax Validation" }
                     Platform.runLater {
-                        fileProgressProperty.set(it / fileLength.toDouble())
+                        fileProgressProperty.set(-1.0)
+                        statusTextProperty.set("")
                     }
-                }))
-            } else {
-                val text = getFullText()
-                val textLength = text.length
-                xmlReader.parse(InputSource(TotalProgressInputStream(text.byteInputStream()) {
-                    Platform.runLater {
-                        fileProgressProperty.set(it / textLength.toDouble())
-                    }
-                }))
+                    return@execute
+                } else {
+                    throw e
+                }
             }
             Platform.runLater {
                 fileProgressProperty.set(-1.0)
                 statusTextProperty.set("")
                 alert(INFORMATION, "The council has decided", "The syntax of this xml file is valid.")
             }
-        }.start()
+        }
     }
 
     private fun validateSchema() {
@@ -1574,6 +1602,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                     fileOffset += read
                     if (hasReset && fileOffset >= startingFileOffset) {
+                        break
+                    }
+                    if (Thread.currentThread().isInterrupted) {
                         break
                     }
                 }

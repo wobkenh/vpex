@@ -1,33 +1,30 @@
-package de.henningwobken.vpex.main.other
+package de.henningwobken.vpex.main.controllers
 
 import javafx.beans.property.ReadOnlyBooleanProperty
 import javafx.beans.property.SimpleBooleanProperty
 import mu.KotlinLogging
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
+import tornadofx.*
 
-class VpexExecutor {
+class VpexExecutor : Controller() {
     private val isRunningProperty = SimpleBooleanProperty(false)
     val isRunning: ReadOnlyBooleanProperty = isRunningProperty
     private val logger = KotlinLogging.logger {}
-    private val threadPool = Executors.newSingleThreadExecutor()
     private val lock = Object()
-    private var currentTask: Future<*>? = null
+    private var currentTask: Thread? = null
     private var shouldCancel = false
     private var shouldShutdown = false
 
     init {
-        threadPool.submit()
         Thread {
             while (true) {
                 synchronized(lock) {
                     if (shouldShutdown) {
                         logger.debug("Shutting down Vpex Executor (Thread Pool and Monitor Thread)")
-                        threadPool.shutdownNow()
+                        currentTask?.interrupt()
                         return@Thread
                     }
-                    val future = currentTask
-                    if (future == null) {
+                    val thread = currentTask
+                    if (thread == null) {
                         if (shouldCancel) {
                             logger.error("Cancelling was set, but there was no Task to cancel")
                             shouldCancel = false
@@ -36,18 +33,16 @@ class VpexExecutor {
                     }
                     if (shouldCancel) {
                         logger.debug("Cancelling current Task")
-                        if (future.isCancelled || future.isDone) {
+                        if (thread.isInterrupted || !thread.isAlive) {
                             logger.error("Task was already done or cancelled")
                             shouldCancel = false
                             return@synchronized
                         }
-                        if (!future.cancel(true)) {
-                            logger.warn("Task could not be cancelled. Maybe it was already finished?")
-                        }
+                        thread.interrupt()
                         shouldCancel = false
                     }
-                    if (future.isDone) {
-                        logger.info("Removing Task as it is done or cancelled")
+                    if (!thread.isAlive) {
+                        logger.info("Removing Task as it is done or was cancelled")
                         currentTask = null
                         isRunningProperty.set(false)
                     }
@@ -60,9 +55,10 @@ class VpexExecutor {
     fun execute(runnable: () -> Unit) {
         synchronized(lock) {
             isRunningProperty.set(true)
-            val future = threadPool.submit(runnable)
+            val thread = Thread(runnable)
             logger.info("Setting current Task")
-            currentTask = future
+            thread.start()
+            currentTask = thread
         }
     }
 

@@ -3,6 +3,7 @@ package de.henningwobken.vpex.main.views
 import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.InternalResourceController
 import de.henningwobken.vpex.main.controllers.SettingsController
+import de.henningwobken.vpex.main.controllers.VpexExecutor
 import de.henningwobken.vpex.main.model.InternalResource
 import de.henningwobken.vpex.main.xml.DiffProgressInputStream
 import de.henningwobken.vpex.main.xml.ResourceResolver
@@ -45,6 +46,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     private val logger = KotlinLogging.logger {}
     private val settingsController by inject<SettingsController>()
     private val internalResourceController by inject<InternalResourceController>()
+    private val vpexExecutor by inject<VpexExecutor>()
     lateinit var gotoLineColumn: (line: Long, column: Long, file: File?) -> Unit
 
     private enum class ValidationSeverity {
@@ -224,33 +226,35 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
         Platform.runLater {
             fileCountProperty.set(1)
         }
-        Thread {
+        vpexExecutor.execute {
             logger.info("Started validating against schema")
             val validator = getValidator { exception, severity ->
                 addException(SAXExceptionWrapper(exception, severity, null))
             }
             try {
                 validator.validate(SAXSource(InputSource(TotalProgressInputStream(inputStream) {
+                    if (Thread.currentThread().isInterrupted) {
+                        throw RuntimeException("Cancelled")
+                    }
                     Platform.runLater {
                         progressProperty.set(it / inputSize.toDouble())
                     }
                 })))
             } catch (exception: SAXParseException) {
                 logger.warn { "Ignoring SAXParseException: ${exception.message}" }
+            } catch (exception: RuntimeException) {
+                logger.warn { "Validation was cancelled" }
             }
-            Platform.runLater {
-                logger.info("Finished validating against schema")
-                progressProperty.set(1.0)
-                workingProperty.set(false)
-            }
-        }.start()
+            logger.info("Finished validating against schema")
+            setFinished()
+        }
     }
 
     fun validateSchemaForFiles(files: List<File>) {
         Platform.runLater {
             fileCountProperty.set(files.size)
         }
-        Thread {
+        vpexExecutor.execute {
             // Need to be in a new Thread as to not block ui while waiting
             val bytesTotal = files.map { it.length() }.sum()
             val bytesRead = AtomicLong(0)
@@ -274,17 +278,32 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
             }
             executor.shutdown()
             while (!executor.isTerminated) {
+                if (Thread.currentThread().isInterrupted) {
+                    logger.info { "Cancelling validations" }
+                    executor.shutdownNow()
+                    break
+                }
                 Platform.runLater {
                     progressProperty.set(bytesRead.get() / (bytesTotal.toDouble()))
                 }
-                Thread.sleep(20)
+                try {
+                    Thread.sleep(20)
+                } catch (e: InterruptedException) {
+                    logger.info { "Cancelling validations" }
+                    executor.shutdownNow()
+                    break
+                }
             }
             logger.info { "Finished all validations" }
-            Platform.runLater {
-                progressProperty.set(1.0)
-                workingProperty.set(false)
-            }
-        }.start()
+            setFinished()
+        }
+    }
+
+    private fun setFinished() {
+        Platform.runLater {
+            progressProperty.set(1.0)
+            workingProperty.set(false)
+        }
     }
 
     private fun getSchema(): Schema {
