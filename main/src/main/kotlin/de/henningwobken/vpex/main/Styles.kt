@@ -20,6 +20,7 @@ class Styles : Stylesheet() {
         // classes
         val unchanged by cssclass()
         val changed by cssclass()
+        val warning by cssclass()
         val primaryHeader by cssclass()
         val button by cssclass()
         val card by cssclass()
@@ -58,6 +59,12 @@ class Styles : Stylesheet() {
             textFill = Color.WHITE
             backgroundColor += Color.INDIANRED
             fontWeight = FontWeight.BOLD
+        }
+        warning {
+            textFill = Color.WHITE
+            backgroundColor += dangerColor
+            fontWeight = FontWeight.BOLD
+            cursor = Cursor.HAND
         }
         primaryHeader {
             backgroundColor += primaryColor

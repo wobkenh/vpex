@@ -407,6 +407,26 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
 
                 /*
+                    Disk Pagination Info
+                 */
+                label("Disk") {
+                    removeWhen { displayMode.isNotEqualTo(DisplayMode.DISK_PAGINATION) }
+                    paddingAll = 10.0
+                    prefWidth = 60.0
+                    addClass(Styles.warning)
+                    val tooltipText = """
+                        Disk Pagination mode is activated. Only the page you are viewing will be kept in memory.
+                        This means:
+                        - Changes need to be saved on page switch
+                        - You should never overwrite the current file when saving
+                        - The result of "Replace All" needs to be saved to a new file
+                        - "Find All"/"Replace All" will work, but might be slow
+                    """.trimIndent()
+                    tooltip(tooltipText)
+                    tooltip.isAutoHide = false
+                }
+
+                /*
                     Status
                 */
 
