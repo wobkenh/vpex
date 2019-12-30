@@ -1,6 +1,5 @@
-package de.henningwobken.vpex.xml
+package de.henningwobken.vpex.main.xml
 
-import de.henningwobken.vpex.main.xml.XmlFormattingService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.io.StringReader

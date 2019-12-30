@@ -51,6 +51,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val xmlFormattingService: XmlFormattingService by inject()
     private val searchAndReplaceController: SearchAndReplaceController by inject()
     private val vpexExecutor: VpexExecutor by inject()
+    private val fileCalculationController: FileCalculationController by inject()
 
     private var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
@@ -749,24 +750,19 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val pageSize = this.settingsController.getSettings().pageSize
             if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
                 val file = getFile()
-                val totalSize = file.length().toDouble()
-                val reader = file.reader()
-                val buffer = CharArray(pageSize)
-                var pageIndex = 0
-                var totalBytesRead = 0L
-                while (true) {
-                    val read = reader.read(buffer)
-                    if (read == -1) {
-                        break
+                try {
+                    val result = fileCalculationController.calcStartingByteIndexesAndLineCounts(file, pageSize) { progress ->
+                        if (Thread.currentThread().isInterrupted) {
+                            throw InterruptedException("Cancelled")
+                        }
+                        Platform.runLater {
+                            fileProgressProperty.set(progress)
+                        }
                     }
-                    pageStartingByteIndexes.add(totalBytesRead)
-                    val string = String(buffer, 0, read)
-                    totalBytesRead += string.toByteArray().size
-                    pageLineCounts.add(stringUtils.countLinesInString(string))
-                    pageIndex++
-                    Platform.runLater {
-                        fileProgressProperty.set(totalBytesRead / totalSize)
-                    }
+                    pageLineCounts.addAll(result.pageLineCounts)
+                    pageStartingByteIndexes.addAll(result.pageStartingByteIndexes)
+                } catch (interruptedException: InterruptedException) {
+                    logger.warn("Line Number Calculation cancelled!")
                 }
             } else {
                 val maxPage = ceil(this.fullText.length / this.settingsController.getSettings().pageSize.toDouble()).toInt()
@@ -776,21 +772,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
             }
             val maxPage = pageLineCounts.size
-            // for page 1 there are no previous pages
-            pageStartingLineCounts.add(0)
-            for (page in 2..maxPage) {
-                val pageIndex = page - 1
-                // minus 1 since page break introduces a "fake" line break
-                pageStartingLineCounts.add(pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1] - 1)
-                Platform.runLater {
-                    fileProgressProperty.set(page / maxPage.toDouble())
-                }
-            }
+            pageStartingLineCounts.addAll(fileCalculationController.calculateStartingLineCounts(pageLineCounts))
             Platform.runLater {
                 this.maxPage.set(maxPage)
                 fileProgressProperty.set(-1.0)
                 statusTextProperty.set("")
-                this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last())
+                if (pageLineCounts.isNotEmpty()) {
+                    this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last())
+                }
             }
             logger.info("Set max page to $maxPage")
             logger.info("Set max lines to ${pageTotalLineCount.get()}")

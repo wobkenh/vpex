@@ -32,4 +32,16 @@ class FileCalculationController : Controller() {
         reader.close()
         return CalculationResult(pageLineCounts, pageStartingByteIndexes)
     }
+
+    fun calculateStartingLineCounts(pageLineCounts: List<Int>): List<Int> {
+        val pageStartingLineCounts = mutableListOf<Int>()
+        val maxPage = pageLineCounts.size
+        pageStartingLineCounts.add(0)
+        for (page in 2..maxPage) {
+            val pageIndex = page - 1
+            // minus 1 since page break introduces a "fake" line break
+            pageStartingLineCounts.add(pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1] - 1)
+        }
+        return pageStartingLineCounts
+    }
 }

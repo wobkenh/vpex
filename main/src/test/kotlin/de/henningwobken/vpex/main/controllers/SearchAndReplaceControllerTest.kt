@@ -1,8 +1,5 @@
-package de.henningwobken.vpex.controller
+package de.henningwobken.vpex.main.controllers
 
-import de.henningwobken.vpex.main.controllers.FileCalculationController
-import de.henningwobken.vpex.main.controllers.SearchAndReplaceController
-import de.henningwobken.vpex.main.controllers.StringUtils
 import de.henningwobken.vpex.main.model.Find
 import de.henningwobken.vpex.main.model.SearchDirection
 import de.henningwobken.vpex.main.model.SearchTextMode
