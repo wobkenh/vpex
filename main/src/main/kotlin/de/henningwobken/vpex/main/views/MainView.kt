@@ -100,8 +100,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val page = SimpleIntegerProperty(1)
     private val pageDisplayProperty = SimpleIntegerProperty(1)
     private var maxPage = SimpleIntegerProperty(0)
-    private var pageLineCounts = IntArray(0) // Line count of each page
-    private var pageStartingLineCounts = IntArray(0) // For each page the number of lines before this page
+    private var pageLineCounts = mutableListOf<Int>() // Line count of each page
+    private var pageStartingLineCounts = mutableListOf<Int>() // For each page the number of lines before this page
+    private var pageStartingByteIndexes = mutableListOf<Long>() // For each page the byte index that the page starts at
     private val pageTotalLineCount = SimpleIntegerProperty(0)
     private var ignoreTextChanges = false // If set to true, ignore changes in code area for line counts / dirty detection
     private var dirtySinceLastSync = false
@@ -317,11 +318,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         statusTextProperty.set("Searching")
-                                        searchAll { finds ->
+                                        searchAll({ finds ->
                                             Platform.runLater {
                                                 highlightFinds(finds)
                                             }
-                                        }
+                                        })
                                         val firstInPage = allFinds.filter { isInPage(it) }.minBy { it.start }
                                         if (firstInPage != null) {
                                             moveToFind(firstInPage)
@@ -352,7 +353,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         enableWhen { vpexExecutor.isRunning.not() }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
-                                        searchAll { }
+                                        searchAll({ })
                                     }
                                 }
                             }
@@ -741,60 +742,59 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
      */
     private fun calcLinesAllPages() {
         statusTextProperty.set("Calculating Line Numbers")
-        Thread {
-            this.pageLineCounts = IntArray(this.maxPage.get())
-            this.pageStartingLineCounts = IntArray(this.maxPage.get())
+        vpexExecutor.execute {
+            this.pageLineCounts.clear()
+            this.pageStartingLineCounts.clear()
+            this.pageStartingByteIndexes.clear()
             val pageSize = this.settingsController.getSettings().pageSize
             if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
                 val file = getFile()
                 val totalSize = file.length().toDouble()
-                val inputStream = TotalProgressInputStream(file.inputStream()) {
+                val reader = file.reader()
+                val buffer = CharArray(pageSize)
+                var pageIndex = 0
+                var totalBytesRead = 0L
+                while (true) {
+                    val read = reader.read(buffer)
+                    if (read == -1) {
+                        break
+                    }
+                    pageStartingByteIndexes.add(totalBytesRead)
+                    val string = String(buffer, 0, read)
+                    totalBytesRead += string.toByteArray().size
+                    pageLineCounts.add(stringUtils.countLinesInString(string))
+                    pageIndex++
                     Platform.runLater {
-                        fileProgressProperty.set(it / totalSize)
+                        fileProgressProperty.set(totalBytesRead / totalSize)
                     }
                 }
-                val buffer = ByteArray(pageSize)
-                for (page in 1..this.maxPage.get()) {
-                    val pageIndex = page - 1
-                    val read = inputStream.read(buffer)
-                    pageLineCounts[pageIndex] = stringUtils.countLinesInString(String(buffer, 0, read))
-                }
             } else {
-                for (page in 1..maxPage.get()) {
+                val maxPage = ceil(this.fullText.length / this.settingsController.getSettings().pageSize.toDouble()).toInt()
+                for (page in 1..maxPage) {
                     val pageIndex = page - 1
-                    pageLineCounts[pageIndex] = stringUtils.countLinesInString(this.fullText.substring(pageIndex * pageSize, min(this.fullText.length, page * pageSize)))
+                    pageLineCounts.add(stringUtils.countLinesInString(this.fullText.substring(pageIndex * pageSize, min(this.fullText.length, page * pageSize))))
                 }
             }
+            val maxPage = pageLineCounts.size
             // for page 1 there are no previous pages
-            pageStartingLineCounts[0] = 0
-            for (page in 2..maxPage.get()) {
+            pageStartingLineCounts.add(0)
+            for (page in 2..maxPage) {
                 val pageIndex = page - 1
                 // minus 1 since page break introduces a "fake" line break
-                pageStartingLineCounts[pageIndex] = pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1] - 1
+                pageStartingLineCounts.add(pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1] - 1)
                 Platform.runLater {
-                    fileProgressProperty.set(page / maxPage.get().toDouble())
+                    fileProgressProperty.set(page / maxPage.toDouble())
                 }
             }
             Platform.runLater {
+                this.maxPage.set(maxPage)
                 fileProgressProperty.set(-1.0)
                 statusTextProperty.set("")
                 this.pageTotalLineCount.set(pageStartingLineCounts.last() + pageLineCounts.last())
             }
+            logger.info("Set max page to $maxPage")
             logger.info("Set max lines to ${pageTotalLineCount.get()}")
-        }.start()
-    }
-
-    private fun calcMaxPage(): Int {
-        val max = if (displayMode.get() == DisplayMode.PAGINATION) {
-            ceil(this.fullText.length / this.settingsController.getSettings().pageSize.toDouble()).toInt()
-        } else {
-            val file = file
-            if (file != null) {
-                ceil(file.length() / settingsController.getSettings().pageSize.toDouble()).toInt()
-            } else 0
         }
-        logger.info("Setting max page to $max")
-        return max
     }
 
     private enum class SyncDirection {
@@ -846,24 +846,42 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 // At this point we can assume that the file content is up to date
 
                 val file = getFile()
-                val destinationBuffer = ByteArray(pageSize)
-                val offset: Long = pageSize.toLong() * (page - 1)
-                val randomAccessFile = RandomAccessFile(file, "r")
-                randomAccessFile.seek(offset)
-                val read = randomAccessFile.read(destinationBuffer, 0, pageSize)
-                randomAccessFile.close()
+                val pageStartingByteIndexes = mainView.pageStartingByteIndexes
+                val text = if (pageStartingByteIndexes.isEmpty()) {
+                    // user is opening the file. Just load the first page.
+                    val reader = file.reader()
+                    val buffer = CharArray(pageSize)
+                    val read = reader.read(buffer)
+                    reader.close()
+                    String(buffer, 0, read)
+                } else {
+                    // load specific page
+                    val startByteIndex = mainView.pageStartingByteIndexes[page - 1]
+                    val endByteIndex = if (page >= mainView.pageStartingByteIndexes.size) {
+                        file.length()
+                    } else {
+                        mainView.pageStartingByteIndexes[page]
+                    }
+                    val pageByteSize = (endByteIndex - startByteIndex).toInt()
+                    val destinationBuffer = ByteArray(pageByteSize)
+                    val randomAccessFile = RandomAccessFile(file, "r")
+                    randomAccessFile.seek(startByteIndex)
+                    val read = randomAccessFile.read(destinationBuffer, 0, pageByteSize)
+                    randomAccessFile.close()
+                    String(destinationBuffer, 0, read)
+                }
                 Platform.runLater {
                     if (mainView.dirtySinceLastSync) {
-                        mainView.maxPage.set(calcMaxPage())
                         // TODO: In TO_FULLTEXT mode we only have to recalculate line breaks of all pages starting with the current page
                         // All pages before that are unaffected
                         mainView.calcLinesAllPages()
                     }
                     mainView.dirtySinceLastSync = false
                     mainView.isDirty.set(false) // Changes were either saved or discarded
-                    replaceText(String(destinationBuffer, 0, read))
+                    replaceText(text)
                     mainView.page.set(page)
                     isOnCorrectPage = true
+                    highlightFinds(allFinds)
                 }
             }
 
@@ -875,12 +893,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 } else {
                     logger.info("Syncing full text to CodeArea")
                 }
-                this.maxPage.set(calcMaxPage())
                 this.calcLinesAllPages()
                 this.dirtySinceLastSync = false
             }
             this.page.set(page)
             replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
+            highlightFinds(allFinds)
         }
     }
 
@@ -957,7 +975,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
                 val inPageIndex: Int = (index - ((page - 1) * this.settingsController.getSettings().pageSize)).toInt()
                 if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-                    // In Disk Pagination, the index refers to bytes, not characters
                     // Problem: In Disk Pagination Mode, the page switch is done async because the user might need
                     // to confirm that he really wants to switch the page (text needs to be saved to disk or changes would be lost)
                     // so we have to wait until the page was actually switched
@@ -967,9 +984,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         while (!isOnCorrectPage) {
                             Thread.sleep(40)
                         }
-                        val charIndex = String(codeArea.text.toByteArray().copyOfRange(0, inPageIndex)).length
                         Platform.runLater {
-                            mainView.moveToLineColumn(0, charIndex)
+                            mainView.moveToLineColumn(0, inPageIndex)
                             if (callback != null) {
                                 callback()
                             }
@@ -1466,7 +1482,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         codeArea.caretPositionProperty().onChange {
             var line = codeArea.currentParagraph
             val column = codeArea.caretSelectionBind.columnPosition
-            if (displayMode.get() != DisplayMode.PLAIN) {
+            if (displayMode.get() != DisplayMode.PLAIN && pageStartingLineCounts.isNotEmpty()) {
                 line += pageStartingLineCounts[getPageIndex()]
             }
             cursorLine.set(line + 1)
@@ -1552,7 +1568,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
      * The callback will either be called once with all findings (plain/pagination)
      * or once per page with all findings of that page (disk pagination)
      */
-    private fun searchAll(callback: (finds: List<Find>) -> Unit) {
+    private fun searchAll(callback: (finds: List<Find>) -> Unit, endCallback: (() -> Unit)? = null) {
         allFinds.clear()
 
         val searchText = getSearchText()
@@ -1567,46 +1583,49 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
                 val pageSize = settingsController.getSettings().pageSize
                 val fileSize = file!!.length()
+
+
                 // We can't load full text into memory
                 // therefore, we have to go page by page
                 // this means that page breaks might hide/split search results
                 // to counter this, a pageOverlap is introduced which will cause the searches to overlap
-                val pageOverlap = max(100, searchText.length)
-                // We dont want page overlap on our first search. Add it here so it gets substracted in the iteration
-                // Also, we want to start at the current page to display the visible results asap
-                var fileOffset = pageSize * getPageIndex() + pageOverlap.toLong()
-                val startingFileOffset = fileOffset // So we know when to stop later
-                var readTotal = -pageOverlap.toLong()
-                val file = RandomAccessFile(file, "r")
-                val buffer = ByteArray(pageSize)
-                var hasReset = false // Whether we already reached the end or not
-                while (true) {
-                    val cursorPosition = fileOffset - pageOverlap
-                    file.seek(cursorPosition)
-                    val read = file.read(buffer)
-                    readTotal += read
-                    if (read == -1 || read == pageOverlap) {
-                        // Reached End -> Reset to page no 1
-                        fileOffset = pageOverlap.toLong()
-                        hasReset = true
-                        continue
+                // TODO: Reimplement page overlap
+                // TODO: Service Method
+                // TODO: Reimplement the start-search-from-current-page mechanism
+                val accessFile = RandomAccessFile(file, "r")
+                var totalBytesRead = 0
+                for (pageIndex in 0 until this.maxPage.get()) {
+                    val startCharIndex = pageSize * pageIndex
+                    val startByteIndex = pageStartingByteIndexes[pageIndex]
+                    val endByteIndex = if (pageIndex + 1 >= pageStartingByteIndexes.size) {
+                        fileSize
+                    } else {
+                        pageStartingByteIndexes[pageIndex + 1]
                     }
-                    val finds = searchAndReplaceController.findAll(String(buffer, 0, read), searchText, interpreterMode, ignoreCase)
-                            .map { find -> Find(find.start + cursorPosition, find.end + cursorPosition) }
+                    val pageByteSize = (endByteIndex - startByteIndex).toInt()
+                    val buffer = ByteArray(pageByteSize)
+                    accessFile.seek(startByteIndex)
+                    val read = accessFile.read(buffer)
+                    if (read == -1) {
+                        break
+                    }
+                    totalBytesRead += read
+                    val string = String(buffer, 0, read)
+                    val finds = searchAndReplaceController.findAll(string, searchText, interpreterMode, ignoreCase)
+                            .map { find -> Find(find.start + startCharIndex, find.end + startCharIndex) }
                             .filter { find -> !allFinds.contains(find) } // Filter Duplicates
                     allFinds.addAll(finds)
                     callback(finds)
                     Platform.runLater {
                         allFindsSize.set(allFinds.size)
-                        fileProgressProperty.set(readTotal / fileSize.toDouble())
-                    }
-                    fileOffset += read
-                    if (hasReset && fileOffset >= startingFileOffset) {
-                        break
+                        fileProgressProperty.set(totalBytesRead / fileSize.toDouble())
                     }
                     if (Thread.currentThread().isInterrupted) {
                         break
                     }
+                }
+                if (endCallback != null) {
+                    endCallback()
                 }
                 Platform.runLater {
                     fileProgressProperty.set(-1.0)
@@ -1626,15 +1645,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (finds.isEmpty()) {
             return
         }
+        val localFinds = finds.toList()
         this.hasFindProperty.set(true)
         val pageSize = this.settingsController.getSettings().pageSize
         if (displayMode.get() == DisplayMode.PLAIN) {
-            for (find in finds) {
+            for (find in localFinds) {
                 codeArea.setStyle(find.start.toInt(), find.end.toInt(), listOf("searchHighlight"))
             }
         } else {
             val pageOffset = this.getPageIndex() * pageSize.toLong()
-            for (find in finds) {
+            for (find in localFinds) {
                 if (isInPage(find)) {
                     val start = max(find.start - pageOffset, 0).toInt()
                     val end = min(find.end - pageOffset, pageSize.toLong() - 1).toInt()
@@ -1650,8 +1670,32 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             // We need to read the original file page by page,
             // do the replacements on the fly
             // and write each page back to the target file
-//            file.inputStream()
-            throw java.lang.UnsupportedOperationException("Not yet implemented")
+
+            // Overwriting the existing file would probably be a bad idea
+            // So let the user chose a new one
+            val outputFile = choseFile()
+            if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
+                Thread {
+                    val writer = FileWriter(outputFile)
+                    this.searchAll({}, endCallback = {
+                        // TODO: Write to new file with replacements
+                        // Search is done - allFinds is now filled
+//                        if (allFinds.size > 0) {
+//                            allFinds.sortBy { it.start }
+//                            var startIndex = 0L
+//                            var endIndex = 0L
+//                            for (find in allFinds) {
+//                                endIndex = find.start
+//                                writer.write()
+//                            }
+//                        }
+                    })
+                }.start()
+            } else {
+                logger.info { "User did not chose a valid file - aborting" }
+                statusTextProperty.set("")
+            }
+
         } else {
             val fulltext = getFullText()
             val stringBuilder = StringBuilder()
@@ -1659,7 +1703,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             var lastEndIndex = 0
 
             // Callback will be executed once with all findings async in a non-ui-thread
-            this.searchAll { finds ->
+            this.searchAll({ finds ->
                 logger.debug("Replacing {} findings", finds.size)
                 for (find in finds) {
                     stringBuilder.append(fulltext.substring(lastEndIndex, find.start.toInt()))
@@ -1676,7 +1720,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                     logger.debug("Text replaced")
                 }
-            }
+            })
 
         }
 
@@ -1693,13 +1737,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         // Find out where to start searching
         val offset = when (displayMode.get()) {
             DisplayMode.PLAIN -> codeArea.caretPosition
-            DisplayMode.PAGINATION -> codeArea.caretPosition + (this.getPageIndex()) * this.settingsController.getSettings().pageSize
-            DisplayMode.DISK_PAGINATION -> {
-                // for disk pagination, we need byte index instead of char index
-                val previousPagesSize = (this.getPageIndex()) * this.settingsController.getSettings().pageSize
-                // bytes in text before current cursor position
-                val currentPageSize = this.codeArea.text.substring(0, this.codeArea.caretPosition).toByteArray().size
-                previousPagesSize + currentPageSize
+            DisplayMode.DISK_PAGINATION, DisplayMode.PAGINATION -> {
+                codeArea.caretPosition + (this.getPageIndex()) * this.settingsController.getSettings().pageSize
             }
             else -> 0 // cant happen
         }
@@ -1723,8 +1762,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val file = file
             if (file != null) {
                 val pageSize = this.settingsController.getSettings().pageSize
-                searchAndReplaceController.findNextFromDisk(file, searchText, offset + skipLastFindOffset,
-                        pageSize, searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
+                val charOffset = pageSize.toLong() * (this.page.get() - 1) + codeArea.caretPosition + skipLastFindOffset
+                searchAndReplaceController.findNextFromDisk(file, searchText, charOffset, pageSize, pageStartingByteIndexes,
+                        searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
             } else null
         } else {
             val fullText = getFullText()
@@ -1740,8 +1780,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     val findStart = codeArea.anchor
                     val findLength = find.end - find.start
                     val findEnd = codeArea.anchor + findLength.toInt()
-                    if (lastFindEnd < codeArea.text.length) {
-                        // Page switch might have cleared all Styling
+                    // TODO: Next/Previous Button to navigate between find results
+                    // User might be using find next button to navigate through search results of all finds
+                    val isInAllFinds = allFinds.find { it == find } != null
+                    if (!isInAllFinds && lastFindEnd < codeArea.text.length) { // Page switch might have cleared all Styling
                         codeArea.clearStyle(lastFindStart, lastFindEnd)
                     }
                     // Search Result may be split by two pages, so cap at text length

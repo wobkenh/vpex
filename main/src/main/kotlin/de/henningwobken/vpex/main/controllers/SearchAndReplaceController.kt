@@ -4,13 +4,9 @@ import de.henningwobken.vpex.main.model.Find
 import de.henningwobken.vpex.main.model.SearchDirection
 import de.henningwobken.vpex.main.model.SearchTextMode
 import tornadofx.*
-import java.awt.event.KeyEvent
 import java.io.File
 import java.io.RandomAccessFile
-import java.lang.Character.UnicodeBlock
-import java.lang.Integer.min
 import java.util.regex.Pattern
-import kotlin.math.max
 
 class SearchAndReplaceController : Controller() {
 
@@ -52,6 +48,9 @@ class SearchAndReplaceController : Controller() {
      * Finds the next occurrence of searchText in the file.
      *
      * @param file file to read form
+     * @param byteOffset offset in characters
+     * @param pageSize size of a page in characters
+     * @param pageStartingByteIndexes a list indicating at which byte index which page starts
      * @param searchDirection In which direction to start searching
      * @param searchTextMode whether to interpret the search term as regex or plain
      * @param searchText text to search for or regex describing it
@@ -63,8 +62,9 @@ class SearchAndReplaceController : Controller() {
      */
     fun findNextFromDisk(file: File,
                          searchText: String,
-                         offset: Int,
+                         charOffset: Long,
                          pageSize: Int,
+                         pageStartingByteIndexes: List<Long>,
                          searchDirection: SearchDirection = SearchDirection.DOWN,
                          searchTextMode: SearchTextMode = SearchTextMode.NORMAL,
                          ignoreCase: Boolean = false): Find? {
@@ -72,50 +72,48 @@ class SearchAndReplaceController : Controller() {
         // therefore, we have to go page by page
         // this means that page breaks might hide/split search results
         // to counter this, a pageOverlap is introduced which will cause the searches to overlap
-        val pageOverlap = max(100, searchText.length)
-        // We dont want page overlap on our first search. Add it here so it gets substracted in the iteration
-        var fileOffset = (offset).toLong() + pageOverlap
+        // TODO: Reimplement page overlap
+        // TODO: Unified Service Method?
         val accessFile = RandomAccessFile(file, "r")
-        val buffer = ByteArray(pageSize)
         var tmpFind: Find? = null
+        var pageIndex = (charOffset / pageSize).toInt()
+        val bufferSize = getBufferSize(pageStartingByteIndexes)
+        val buffer = ByteArray(bufferSize)
         while (true) {
-            accessFile.seek(fileOffset - pageOverlap)
+            if (pageIndex >= pageStartingByteIndexes.size) {
+                break
+            }
+            val startByteIndex = pageStartingByteIndexes[pageIndex]
+            accessFile.seek(startByteIndex)
             val read = accessFile.read(buffer)
             if (read == -1) {
                 break
             }
             val string = String(buffer, 0, read)
-            tmpFind = findNext(string, searchText, 0, searchDirection, searchTextMode, ignoreCase)
+            val pageCharOffset = pageIndex * pageSize.toLong()
+            val offset = if (pageCharOffset < charOffset) {
+                (charOffset % pageSize).toInt()
+            } else 0
+            tmpFind = findNext(string, searchText, offset, searchDirection, searchTextMode, ignoreCase)
             if (tmpFind != null) {
-                // If the file is unicode, one byte != one character
-                // Since we search through the file in pages of byte arrays, there is no way to know
-                // what character number we are at right now.
-                // Therefore, convert the char indices to byte indices
-                // If this solution is causing performance problems, refer to the following SO Thread:
-                // https://stackoverflow.com/questions/27651543/character-index-to-and-from-byte-index
-                val cursorPosition = fileOffset - pageOverlap
-
-                // Bytes before the find
-                // The first character might be broken due to the page break breaking a two-byte character (umlauts) apart
-                // This broken character gets translated into a 3-byte-character when transforming the string back to byte array
-                // Therefore, we simply start at 1 and substract this one character later
-                // If the finding started from the first character, then this does not matter
-                val startIndex = if (isPrintableChar(string.first())) 0 else min(1, tmpFind.start.toInt())
-                val prefixByteLength = string.substring(startIndex, tmpFind.start.toInt()).toByteArray().size + startIndex
-                // Bytes of the find
-                val findByteLength = string.substring(tmpFind.start.toInt(), tmpFind.end.toInt()).toByteArray().size
-                tmpFind = Find(prefixByteLength + cursorPosition, prefixByteLength + findByteLength + cursorPosition)
-                break
+                return Find(tmpFind.start + pageCharOffset, tmpFind.end + pageCharOffset)
             }
-            fileOffset += read
+            pageIndex++
         }
-        return tmpFind
+        return null
     }
 
-    private fun isPrintableChar(c: Char): Boolean {
-        // see https://stackoverflow.com/questions/220547/printable-char-in-java
-        val block = UnicodeBlock.of(c)
-        return !Character.isISOControl(c) && c != KeyEvent.CHAR_UNDEFINED && block != null && block !== UnicodeBlock.SPECIALS
+    private fun getBufferSize(pageStartingByteIndexes: List<Long>): Int {
+        var bufferSize = 0
+        var previousByteIndex = 0L
+        for (startingByteIndex in pageStartingByteIndexes) {
+            val size = (startingByteIndex - previousByteIndex).toInt()
+            if (size > bufferSize) {
+                bufferSize = size
+            }
+            previousByteIndex = startingByteIndex
+        }
+        return bufferSize
     }
 
     /**

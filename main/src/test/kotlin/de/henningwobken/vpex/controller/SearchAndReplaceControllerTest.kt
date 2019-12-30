@@ -1,16 +1,21 @@
 package de.henningwobken.vpex.controller
 
+import de.henningwobken.vpex.main.controllers.FileCalculationController
 import de.henningwobken.vpex.main.controllers.SearchAndReplaceController
+import de.henningwobken.vpex.main.controllers.StringUtils
 import de.henningwobken.vpex.main.model.Find
 import de.henningwobken.vpex.main.model.SearchDirection
 import de.henningwobken.vpex.main.model.SearchTextMode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import tornadofx.*
 import java.io.File
 
 class SearchAndReplaceControllerTest {
-    private val searchAndReplaceController = SearchAndReplaceController()
+    private val scope = Scope(StringUtils(), SearchAndReplaceController())
+    private val fileCalculationController = FileCalculationController()
+    private val searchAndReplaceController = FX.getComponents(scope)[SearchAndReplaceController::class] as SearchAndReplaceController
 
     // region findNext Fulltext
 
@@ -153,23 +158,26 @@ class SearchAndReplaceControllerTest {
 
     @Test
     fun `find next down normal with umlauts`() {
+
+
         val pageSize = 50
-        var find = searchAndReplaceController.findNextFromDisk(testFile, "search", 0, pageSize, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        val pageByteIndexes = fileCalculationController.calcStartingByteIndexesAndLineCounts(testFile, pageSize) {}.pageStartingByteIndexes
+        var find = searchAndReplaceController.findNextFromDisk(testFile, "search", 0, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
         find!!
-        assertEquals(19, find.start) // 18 + 1
-        assertEquals(25, find.end)
+        assertEquals(18, find.start)
+        assertEquals(24, find.end)
 
-        find = searchAndReplaceController.findNextFromDisk(testFile, "search", 20, pageSize, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        find = searchAndReplaceController.findNextFromDisk(testFile, "search", 19, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
         find!!
-        assertEquals(find.start, 101)
-        assertEquals(find.end, 107)
+        assertEquals(91, find.start)
+        assertEquals(97, find.end)
 
-        find = searchAndReplaceController.findNextFromDisk(testFile, "search", 102, pageSize, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        find = searchAndReplaceController.findNextFromDisk(testFile, "search", 92, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
         find!!
-        assertEquals(find.start, 155)
-        assertEquals(find.end, 161)
+        assertEquals(find.start, 140)
+        assertEquals(find.end, 146)
 
-        val noFind = searchAndReplaceController.findNext(fullText, "search", 103, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        val noFind = searchAndReplaceController.findNextFromDisk(testFile, "search", 141, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
         assertNull(noFind)
     }
 
