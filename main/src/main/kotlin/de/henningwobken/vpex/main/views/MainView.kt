@@ -88,6 +88,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val replaceProperty = SimpleStringProperty("")
     private var lastFindStart = 0
     private var lastFindEnd = 0
+    private var lastFind = Find(0L, 0L)
     private val allFinds = mutableListOf<Find>()
     private val allFindsSize = SimpleIntegerProperty(-1)
     private val currentAllFindsIndex = SimpleIntegerProperty(-1)
@@ -350,7 +351,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                                 }
                                                 if (firstInPage != null) {
                                                     currentAllFindsIndex.set(allFinds.indexOf(firstInPage))
-                                                    moveToIndex(firstInPage.start)
+                                                    moveToFind(firstInPage)
                                                 }
                                                 statusTextProperty.set("")
                                             }
@@ -885,6 +886,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val pageSize = settingsController.getSettings().pageSize
         lastFindEnd = 0
         lastFindStart = 0
+        lastFind = Find(0L, 0L)
         hasFindProperty.set(false)
         showedEndOfFileDialog = false
 
@@ -1074,10 +1076,25 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun moveToFind(find: Find) {
         moveToIndex(find.start) {
-            lastFindStart = codeArea.anchor
-            val findLength = find.end - find.start
-            val findEnd = codeArea.anchor + findLength.toInt()
-            lastFindEnd = findEnd
+            Platform.runLater {
+                val findStart = codeArea.anchor
+                val findLength = find.end - find.start
+                val findEnd = codeArea.anchor + findLength.toInt()
+                codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
+                if (isInPage(lastFind)) {
+                    val lastFindWasInAllFinds = allFinds.find { it == lastFind } != null
+                    if (lastFindWasInAllFinds) {
+                        // Need to reapply old styling
+                        codeArea.setStyle(lastFindStart, min(lastFindEnd, codeArea.text.length), listOf("searchAllHighlight"))
+                    } else {
+                        codeArea.clearStyle(lastFindStart, lastFindEnd)
+                    }
+                }
+                lastFindStart = codeArea.anchor
+                lastFindEnd = findEnd
+                lastFind = find
+                this.hasFindProperty.set(true)
+            }
         }
     }
 
@@ -1637,6 +1654,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         this.hasFindProperty.set(false)
         this.lastFindStart = 0
         this.lastFindEnd = 0
+        this.lastFind = Find(0L, 0L)
     }
 
     /**
@@ -1873,26 +1891,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
         // Move to search result
         if (find != null) {
-            moveToIndex(find.start) {
-                Platform.runLater {
-                    val findStart = codeArea.anchor
-                    val findLength = find.end - find.start
-                    val findEnd = codeArea.anchor + findLength.toInt()
-                    // LastFindStart/End => Index in Page
-                    // allFinds Find => Index in whole file
-                    // TODO: Recalculate or save lastFind as Find object with index in file
-                    //   and reapply allFinds styling after clearing
-                    val isInAllFinds = allFinds.find { it == find } != null
-                    if (!isInAllFinds && lastFindEnd < codeArea.text.length) { // Page switch might have cleared all Styling
-                        codeArea.clearStyle(lastFindStart, lastFindEnd)
-                    }
-                    // Search Result may be split by two pages, so cap at text length
-                    codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
-                    lastFindStart = findStart
-                    lastFindEnd = findEnd
-                    this.hasFindProperty.set(true)
-                }
-            }
+            moveToFind(find)
         } else {
             val text = if (searchDirection == SearchDirection.DOWN) {
                 "End reached. Press enter twice to search from the top."
