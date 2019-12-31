@@ -6,6 +6,7 @@ import de.henningwobken.vpex.main.model.InternalResource
 import javafx.scene.Group
 import javafx.scene.image.Image
 import tornadofx.*
+import java.io.InputStream
 import java.net.URI
 
 class InternalResourceController : Controller() {
@@ -48,6 +49,10 @@ class InternalResourceController : Controller() {
             }
         }
         return content
+    }
+
+    fun getAsInputStream(resource: InternalResource): InputStream {
+        return Vpex::class.java.classLoader.getResourceAsStream(resource.filename)!!
     }
 
     fun getAsResource(resource: InternalResource): String {

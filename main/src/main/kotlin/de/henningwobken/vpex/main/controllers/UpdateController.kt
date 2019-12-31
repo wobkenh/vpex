@@ -19,7 +19,8 @@ class UpdateController : Controller() {
     private val url: String = "https://simplex24.de/vpex"
     private val settingsController: SettingsController by inject()
     private val internalResourceController: InternalResourceController by inject()
-    private val currentJar = initCurrentJar()
+    private val currentJarController: CurrentJarController by inject()
+    private val currentJar = currentJarController.currentJar
     private val newJar = File(System.getProperty("user.home") + "/.vpex/tmp.jar")
     private val updaterJar = File(System.getProperty("user.home") + "/.vpex/updater.jar")
 
@@ -152,18 +153,6 @@ class UpdateController : Controller() {
             return "0.0"
         }
         return version
-    }
-
-    private fun initCurrentJar(): File {
-        val file = File(UpdateController::class.java.protectionDomain.codeSource.location.path)
-        logger.info("Current location: ${file.absolutePath}")
-        if (file.exists() && file.isDirectory) {
-            val dummyFile = File(file, "dummy.jar")
-            logger.info("In Dev mode. Replacing current jar with dummy at ${dummyFile.absolutePath}.")
-            FileOutputStream(dummyFile).close()
-            return dummyFile
-        }
-        return file
     }
 
     class ProgressListener(

@@ -1,6 +1,7 @@
 package de.henningwobken.vpex.main.controllers
 
 import de.henningwobken.vpex.main.model.Settings
+import de.henningwobken.vpex.main.model.VpexConstants
 import javafx.scene.control.Alert
 import javafx.scene.layout.Region
 import mu.KotlinLogging
@@ -15,10 +16,12 @@ import javax.net.ssl.X509TrustManager
 
 class SettingsController : Controller() {
     private val logger = KotlinLogging.logger {}
-    private val configFile = File(System.getProperty("user.home") + "/.vpex/config.properties")
-    private val openerBasePathFile = File(System.getProperty("user.home") + "/.vpex/basepath")
+    private val configFile = File(VpexConstants.vpexHome + "/config.properties")
+    private val openerBasePathFile = File(VpexConstants.vpexHome + "/basepath")
     private var settings: Settings
     private var openerBasePath: String = "./"
+    private val contextMenuDefault = VpexConstants.isWindows
+
 
     init {
         settings = loadSettings()
@@ -96,6 +99,7 @@ class SettingsController : Controller() {
         properties.setProperty("trustStore", settings.trustStore)
         properties.setProperty("trustStorePassword", settings.trustStorePassword)
         properties.setProperty("insecure", settings.insecure.toString())
+        properties.setProperty("contextMenu", settings.contextMenu.toString())
         properties.store(configFile.outputStream(), "")
         applySettings(settings)
     }
@@ -129,7 +133,8 @@ class SettingsController : Controller() {
                         properties.getProperty("diskPaginationThreshold", "500").toInt(),
                         properties.getProperty("trustStore", ""),
                         properties.getProperty("trustStorePassword", ""),
-                        properties.getProperty("insecure", "false") == "true"
+                        properties.getProperty("insecure", "false") == "true",
+                        properties.getProperty("contextMenu", contextMenuDefault.toString()) == "true"
 
                 )
             } catch (e: Exception) {
@@ -175,23 +180,24 @@ class SettingsController : Controller() {
 
     private fun getDefaultSettings(): Settings =
             Settings(
-                    listOf("./"),
-                    true,
-                    4,
-                    Locale.ENGLISH,
-                    true,
-                    1000000,
-                    30000000,
-                    true,
-                    "",
-                    null,
-                    true,
-                    false,
-                    true,
-                    500,
-                    "",
-                    "",
-                    false
+                    schemaBasePathList = listOf("./"),
+                    wrapText = true,
+                    prettyPrintIndent = 4,
+                    locale = Locale.ENGLISH,
+                    pagination = true,
+                    pageSize = 1000000,
+                    paginationThreshold = 30000000,
+                    autoUpdate = true,
+                    proxyHost = "",
+                    proxyPort = null,
+                    memoryIndicator = true,
+                    saveLock = false,
+                    diskPagination = true,
+                    diskPaginationThreshold = 500,
+                    trustStore = "",
+                    trustStorePassword = "",
+                    insecure = false,
+                    contextMenu = contextMenuDefault
             )
 
     private fun validateSettings(settings: Settings) {

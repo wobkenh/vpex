@@ -27,6 +27,7 @@ import org.fxmisc.richtext.CodeArea
 import org.xml.sax.InputSource
 import org.xml.sax.SAXException
 import tornadofx.*
+import java.awt.Robot
 import java.io.*
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -52,6 +53,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val searchAndReplaceController: SearchAndReplaceController by inject()
     private val vpexExecutor: VpexExecutor by inject()
     private val fileCalculationController: FileCalculationController by inject()
+    private val windowsContextMenuController: WindowsContextMenuController by inject()
+    private val vpexTriggerMonitor: VpexTriggerMonitor by inject()
 
     private var codeArea: CodeArea by singleAssign()
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
@@ -115,6 +118,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val cursorColumn = SimpleIntegerProperty(0)
 
     init {
+        if (settingsController.getSettings().contextMenu) {
+            windowsContextMenuController.addVpexEntry()
+        }
         internalResourceController.getAsStrings(InternalResource.BANNER).forEach(::println)
         if (settingsController.getSettings().autoUpdate) {
             statusTextProperty.set("Checking for updates")
@@ -148,6 +154,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
             }.start()
         }
+        FX.primaryStage.setOnShowing {
+            vpexTriggerMonitor.start {
+                Platform.runLater {
+                    val robot = Robot()
+                    // TODO: Spawn a fake-window, click that with robot, close it
+                    FX.primaryStage.toFront()
+                    openFile(File(it))
+                }
+            }
+        }
         FX.primaryStage.setOnCloseRequest {
             if (memoryMonitorThread != null) {
                 stopMonitorThread = true
@@ -155,6 +171,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
             fileWatcher?.stopThread()
             vpexExecutor.shutdown()
+            vpexTriggerMonitor.shutdown()
         }
     }
 
