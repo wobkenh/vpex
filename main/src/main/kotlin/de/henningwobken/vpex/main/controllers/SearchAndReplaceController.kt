@@ -72,6 +72,7 @@ class SearchAndReplaceController : Controller() {
         // therefore, we have to go page by page
         // this means that page breaks might hide/split search results
         // to counter this, a pageOverlap is introduced which will cause the searches to overlap
+        // TODO: SearchDirection
         // TODO: Reimplement page overlap
         // TODO: Unified Service Method?
         val accessFile = RandomAccessFile(file, "r")

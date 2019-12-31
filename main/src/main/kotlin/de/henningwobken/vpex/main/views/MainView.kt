@@ -94,6 +94,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val searchDirection = SimpleObjectProperty<Any>()
     private val textInterpreterMode = SimpleObjectProperty<Any>()
     private val ignoreCaseProperty = SimpleBooleanProperty(false)
+    private var showedEndOfFileDialog = false
+    private var showedEndOfFileDialogCaretPosition = 0
+    //    private var showedEndOfFileDialog = false
     // Disk Pagination only: Page Switch is done async, so we might need to wait with ui changes till after the change
     // e.g. on find next
     private var isOnCorrectPage = false
@@ -623,6 +626,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         fileProgressProperty.set(-1.0)
         fileWatcher?.stopThread()
         fileWatcher = null
+        showedEndOfFileDialog = false
     }
 
     private fun closeSearchAndReplace() {
@@ -824,6 +828,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         lastFindEnd = 0
         lastFindStart = 0
         hasFindProperty.set(false)
+        showedEndOfFileDialog = false
 
 
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
@@ -943,7 +948,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun moveTo(userLine: Long, userColumn: Long) {
-        if (displayMode.get() == DisplayMode.PAGINATION) {
+        if (displayMode.get() == DisplayMode.PLAIN) {
+            val line = max(min(userLine.toInt(), codeArea.paragraphs.size), 1) - 1
+            val column = min(userColumn.toInt(), codeArea.getParagraph(line).length())
+            moveToLineColumn(line, column)
+        } else {
             moveToPage(this.page.get()) // Might change starting line counts if there are unsaved changes
             var page = 1
             for (i in this.maxPage.get() downTo 1) {
@@ -959,19 +968,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             // TODO: Should be long
             val column = min(userColumn.toInt(), codeArea.getParagraph(line).length())
             moveToLineColumn(line, column)
-        } else if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-            // TODO: Read next page from file
-            throw UnsupportedOperationException("Not yet implemented")
-        } else {
-            val line = max(min(userLine.toInt(), codeArea.paragraphs.size), 1) - 1
-            val column = min(userColumn.toInt(), codeArea.getParagraph(line).length())
-            moveToLineColumn(line, column)
         }
     }
 
     private fun moveToIndex(index: Long, callback: (() -> Unit)? = null) {
-        when {
-            displayMode.get() == DisplayMode.PLAIN -> moveToLineColumn(0, index.toInt())
+        when (displayMode.get()) {
+            DisplayMode.PLAIN -> {
+                moveToLineColumn(0, index.toInt()) {
+                    if (callback != null) {
+                        callback()
+                    }
+                }
+            }
             else -> {
                 val page = getPageOfIndex(index)
                 if (page != this.page.get()) {
@@ -991,16 +999,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                             Thread.sleep(40)
                         }
                         Platform.runLater {
-                            mainView.moveToLineColumn(0, inPageIndex)
-                            if (callback != null) {
-                                callback()
+                            mainView.moveToLineColumn(0, inPageIndex) {
+                                if (callback != null) {
+                                    callback()
+                                }
                             }
                         }
                     }
                 } else {
-                    this.moveToLineColumn(0, inPageIndex)
-                    if (callback != null) {
-                        callback()
+                    this.moveToLineColumn(0, inPageIndex) {
+                        if (callback != null) {
+                            callback()
+                        }
                     }
                 }
 
@@ -1017,17 +1027,23 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun getPageOfIndex(index: Long): Int {
+        if (index == 0L) {
+            return 1
+        }
         return ceil(index / this.settingsController.getSettings().pageSize.toDouble()).toInt()
     }
 
     /**
      * Moves the cursor to the specified line/column
      */
-    private fun moveToLineColumn(line: Int, column: Int) {
+    private fun moveToLineColumn(line: Int, column: Int, callback: (() -> Unit)? = null) {
         Platform.runLater {
             codeArea.moveTo(codeArea.position(line, column).toOffset())
             codeArea.requestFollowCaret()
             logger.info("Moved to $line:$column")
+            if (callback != null) {
+                callback()
+            }
         }
     }
 
@@ -1681,11 +1697,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             // So let the user chose a new one
             val outputFile = choseFile()
             if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
-                Thread {
-                    val writer = FileWriter(outputFile)
-                    this.searchAll({}, endCallback = {
-                        // TODO: Write to new file with replacements
-                        // Search is done - allFinds is now filled
+                val writer = FileWriter(outputFile)
+                // End Callback will be executed async in a non-ui-thread
+                this.searchAll({}, endCallback = {
+                    // TODO: Write to new file with replacements
+                    // Search is done - allFinds is now filled
 //                        if (allFinds.size > 0) {
 //                            allFinds.sortBy { it.start }
 //                            var startIndex = 0L
@@ -1695,8 +1711,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 //                                writer.write()
 //                            }
 //                        }
-                    })
-                }.start()
+                })
             } else {
                 logger.info { "User did not chose a valid file - aborting" }
                 statusTextProperty.set("")
@@ -1740,6 +1755,29 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun findNext() {
+        if (showedEndOfFileDialog) {
+            showedEndOfFileDialog = false
+            if (showedEndOfFileDialogCaretPosition == codeArea.caretPosition) {
+                if (searchDirection.get() == SearchDirection.DOWN) {
+                    moveToIndex(0) {
+                        findNextFromCurrentCaretPosition()
+                    }
+                } else {
+                    // TODO: Fix me
+                    moveToLineColumn(this.lineCount.get(), 0) {
+                        findNextFromCurrentCaretPosition()
+                    }
+                }
+            } else {
+                findNextFromCurrentCaretPosition()
+            }
+        } else {
+            findNextFromCurrentCaretPosition()
+        }
+    }
+
+    private fun findNextFromCurrentCaretPosition() {
+
         // Find out where to start searching
         val offset = when (displayMode.get()) {
             DisplayMode.PLAIN -> codeArea.caretPosition
@@ -1800,13 +1838,17 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
             }
         } else {
-            // TODO: first enter => overlay at bottom right saying there are no more results and fading out after x seconds
-            //      second enter => start at beginning of file
-            //          no alert, vlt. Info unten in Statusbar
-            val alert = Alert(Alert.AlertType.WARNING, "I went a bit over the edge there. There are no more results.")
+            val text = if (searchDirection == SearchDirection.DOWN) {
+                "End reached. Press enter twice to search from the top."
+            } else {
+                "Start reached. Press enter twice to search from the bottom."
+            }
+            val alert = Alert(INFORMATION, text)
             alert.title = "End of file"
             alert.dialogPane.minHeight = Region.USE_PREF_SIZE
             alert.showAndWait()
+            showedEndOfFileDialog = true
+            showedEndOfFileDialogCaretPosition = codeArea.caretPosition
         }
     }
 
