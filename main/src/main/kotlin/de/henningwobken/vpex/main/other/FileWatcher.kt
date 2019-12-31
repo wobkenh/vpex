@@ -18,6 +18,7 @@ class FileWatcher(private val file: File, private val onChange: () -> Unit) : Th
     val ignore = AtomicBoolean(false)
 
     fun stopThread() {
+        logger.info("Stopping FileWatcher")
         stop.set(true)
     }
 
@@ -58,7 +59,7 @@ class FileWatcher(private val file: File, private val onChange: () -> Unit) : Th
                     }
                     yield()
                 }
-                logger.info("Stopping FileWatcher")
+                logger.info("FileWatcher stopped")
             }
         } catch (e: Throwable) {
             logger.warn { "Failure to watch file directory: ${e.message}" }

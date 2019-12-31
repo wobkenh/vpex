@@ -19,8 +19,8 @@ class VpexExecutor : Controller() {
             while (true) {
                 synchronized(lock) {
                     if (shouldShutdown) {
-                        logger.debug("Shutting down Vpex Executor (Thread Pool and Monitor Thread)")
                         currentTask?.interrupt()
+                        logger.debug("Shutting down Vpex Executor (Thread Pool and Monitor Thread)")
                         return@Thread
                     }
                     val thread = currentTask

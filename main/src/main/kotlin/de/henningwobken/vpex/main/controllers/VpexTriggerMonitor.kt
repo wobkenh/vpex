@@ -38,16 +38,18 @@ class VpexTriggerMonitor : Controller() {
         // TODO: Share this with FileWatcher/MemoryMonitor/...
         Thread {
             while (true) {
-                if (!shutdown) {
-                    if (receiveFile.exists()) {
-                        val path = Files.readAllLines(receiveFile.toPath()).first().trim('\"', '\r', '\n', ' ')
-                        Files.delete(receiveFile.toPath())
-                        logger.info("Triggered by receive file. Opening path '$path'")
-                        onFilepathReceived(path)
-                    }
-                    Thread.sleep(200)
+                if (shutdown) {
+                    break
                 }
+                if (receiveFile.exists()) {
+                    val path = Files.readAllLines(receiveFile.toPath()).first().trim('\"', '\r', '\n', ' ')
+                    Files.delete(receiveFile.toPath())
+                    logger.info("Triggered by receive file. Opening path '$path'")
+                    onFilepathReceived(path)
+                }
+                Thread.sleep(200)
             }
+            logger.info("VpexTriggerMonitor shut down")
         }.start()
     }
 
