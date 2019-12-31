@@ -685,6 +685,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         fileWatcher?.stopThread()
         fileWatcher = null
         allFinds.clear()
+        allFindsSize.set(-1)
+        lastFind = Find(0L, 0L)
+        lastFindStart = 0
+        lastFindEnd = 0
+        currentAllFindsIndex.set(-1)
         showedEndOfFileDialog = false
     }
 
