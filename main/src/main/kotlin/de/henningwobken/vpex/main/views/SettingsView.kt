@@ -44,7 +44,7 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val trustStorePasswordProperty = SimpleStringProperty()
     private val insecureProperty = SimpleBooleanProperty()
     private val contextMenuProperty = SimpleBooleanProperty()
-    private val hadContextMenu: Boolean
+    private var hadContextMenu: Boolean
 
     init {
         val settings = settingsController.getSettings()
@@ -99,7 +99,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                     field("Memory Indicator") {
                         checkbox("", memoryIndicatorProperty)
                     }
-                    field("Context Menu Entry") {
+                    field("Windows Context Menu Entry") {
                         removeWhen(SimpleBooleanProperty(!VpexConstants.isWindows))
                         checkbox("", contextMenuProperty)
                     }
@@ -292,6 +292,7 @@ class SettingsView : View("VPEX - Einstellungen") {
         )
         settingsController.saveSettings(settings)
         if (hadContextMenu != settings.contextMenu) {
+            hadContextMenu = settings.contextMenu
             if (settings.contextMenu) {
                 windowsContextMenuController.addVpexEntry()
             } else {
