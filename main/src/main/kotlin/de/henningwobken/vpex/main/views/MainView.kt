@@ -90,16 +90,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var lastFindEnd = 0
     private val allFinds = mutableListOf<Find>()
     private val allFindsSize = SimpleIntegerProperty(-1)
+    private val currentAllFindsIndex = SimpleIntegerProperty(-1)
+    private val currentAllFindsDisplayIndex = SimpleIntegerProperty(-1)
     private val hasFindProperty = SimpleBooleanProperty(false)
     private val searchDirection = SimpleObjectProperty<Any>()
     private val textInterpreterMode = SimpleObjectProperty<Any>()
     private val ignoreCaseProperty = SimpleBooleanProperty(false)
     private var showedEndOfFileDialog = false
     private var showedEndOfFileDialogCaretPosition = 0
-    //    private var showedEndOfFileDialog = false
-    // Disk Pagination only: Page Switch is done async, so we might need to wait with ui changes till after the change
-    // e.g. on find next
-    private var isOnCorrectPage = false
 
     // Pagination
     private val displayMode = SimpleObjectProperty<DisplayMode>(DisplayMode.PLAIN)
@@ -343,12 +341,20 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                             Platform.runLater {
                                                 highlightFinds(finds)
                                             }
+                                        }, endCallback = {
+                                            Platform.runLater {
+                                                val firstInPage = if (displayMode.get() == DisplayMode.PLAIN) {
+                                                    allFinds.minBy { it.start }
+                                                } else {
+                                                    allFinds.filter { isInPage(it) }.minBy { it.start }
+                                                }
+                                                if (firstInPage != null) {
+                                                    currentAllFindsIndex.set(allFinds.indexOf(firstInPage))
+                                                    moveToIndex(firstInPage.start)
+                                                }
+                                                statusTextProperty.set("")
+                                            }
                                         })
-                                        val firstInPage = allFinds.filter { isInPage(it) }.minBy { it.start }
-                                        if (firstInPage != null) {
-                                            moveToFind(firstInPage)
-                                        }
-                                        statusTextProperty.set("")
                                     }
                                     button("List all") {
                                         enableWhen { vpexExecutor.isRunning.not() }
@@ -381,7 +387,58 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         }
                         fieldset {
                             visibleWhen(allFindsSize.greaterThan(-1))
-                            label(allFindsSize.stringBinding { "${it!!} matches" })
+                            vbox(10) {
+                                hbox(5) {
+                                    alignment = Pos.CENTER
+                                    textfield(currentAllFindsDisplayIndex) {
+                                        currentAllFindsIndex.onChange { currentAllFindsDisplayIndex.set(currentAllFindsIndex.get() + 1) }
+                                        prefWidth = 50.0
+                                        maxWidth = 50.0
+                                    }.action {
+                                        val enteredIndex = currentAllFindsDisplayIndex.get() - 1
+                                        if (enteredIndex < 0 || enteredIndex >= allFinds.size) {
+                                            currentAllFindsDisplayIndex.set(currentAllFindsIndex.get() + 1)
+                                        } else {
+                                            // TODO: Do we need to save isDirty and reapply after move?
+//                                            val dirty = isDirty.get()
+                                            currentAllFindsIndex.set(enteredIndex)
+                                            val find = allFinds[enteredIndex]
+                                            moveToFind(find)
+//                                            moveToPage(pageDisplayProperty.get())
+//                                            isDirty.set(dirty)
+                                        }
+                                    }
+                                    label("/")
+                                    label(allFindsSize.stringBinding { "${it!!} matches" })
+                                }
+                                hbox(10) {
+                                    alignment = Pos.CENTER
+                                    button("<<") {
+                                        disableWhen {
+                                            currentAllFindsDisplayIndex.isEqualTo(1)
+                                        }
+                                    }.action {
+                                        //                                        val dirty = isDirty.get()
+                                        val findIndex = currentAllFindsIndex.get() - 1
+                                        currentAllFindsIndex.set(findIndex)
+                                        val find = allFinds[findIndex]
+                                        moveToFind(find)
+//                                        isDirty.set(dirty)
+                                    }
+                                    button(">>") {
+                                        disableWhen {
+                                            currentAllFindsDisplayIndex.greaterThanOrEqualTo(allFindsSize)
+                                        }
+                                    }.action {
+                                        //                                        val dirty = isDirty.get()
+                                        val findIndex = currentAllFindsIndex.get() + 1
+                                        currentAllFindsIndex.set(findIndex)
+                                        val find = allFinds[findIndex]
+                                        moveToFind(find)
+//                                        isDirty.set(dirty)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -499,8 +556,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         alignment = Pos.CENTER
                         textfield(pageDisplayProperty) {
                             page.onChange { pageDisplayProperty.set(page.get()) }
-                            prefWidth = 50.0
-                            maxWidth = 50.0
+                            prefWidth = 60.0
+                            maxWidth = 60.0
                         }.action {
                             val enteredPage = pageDisplayProperty.get()
                             if (enteredPage < 1 || enteredPage > maxPage.get()) {
@@ -626,6 +683,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         fileProgressProperty.set(-1.0)
         fileWatcher?.stopThread()
         fileWatcher = null
+        allFinds.clear()
         showedEndOfFileDialog = false
     }
 
@@ -822,7 +880,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
      *      or
      *      b) TO_CODEAREA: from fulltext to codearea (e.g. fulltext was replaced due to formatting action)
      */
-    private fun moveToPage(page: Int, syncDirection: SyncDirection) {
+    private fun moveToPage(page: Int, syncDirection: SyncDirection, callback: (() -> Unit)? = null) {
         logger.info("Moving to page $page with sync direction $syncDirection")
         val pageSize = settingsController.getSettings().pageSize
         lastFindEnd = 0
@@ -891,8 +949,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     mainView.isDirty.set(false) // Changes were either saved or discarded
                     replaceText(text)
                     mainView.page.set(page)
-                    isOnCorrectPage = true
                     highlightFinds(allFinds)
+                    if (callback != null) {
+                        callback()
+                    }
                 }
             }
 
@@ -910,6 +970,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             this.page.set(page)
             replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
             highlightFinds(allFinds)
+            if (callback != null) {
+                callback()
+            }
         }
     }
 
@@ -921,8 +984,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         return file!!
     }
 
-    private fun moveToPage(page: Int) {
-        moveToPage(page, SyncDirection.TO_FULLTEXT)
+    private fun moveToPage(page: Int, callback: (() -> Unit)? = null) {
+        moveToPage(page, SyncDirection.TO_FULLTEXT, callback)
     }
 
     /**
@@ -953,21 +1016,29 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val column = min(userColumn.toInt(), codeArea.getParagraph(line).length())
             moveToLineColumn(line, column)
         } else {
-            moveToPage(this.page.get()) // Might change starting line counts if there are unsaved changes
-            var page = 1
-            for (i in this.maxPage.get() downTo 1) {
-                if (userLine > pageStartingLineCounts[i - 1]) {
-                    page = i
-                    break
+            // Might change starting line counts if there are unsaved changes
+            moveToPage(this.page.get()) {
+                var page = 1
+                for (i in this.maxPage.get() downTo 1) {
+                    if (userLine > pageStartingLineCounts[i - 1]) {
+                        page = i
+                        break
+                    }
+                }
+                val afterPageSwitch = {
+                    val line = max(min((userLine - pageStartingLineCounts[page - 1]).toInt(), codeArea.paragraphs.size), 1) - 1
+                    // TODO: Should be long
+                    val column = min(userColumn.toInt(), codeArea.getParagraph(line).length())
+                    moveToLineColumn(line, column)
+                }
+                if (page != this.page.get()) {
+                    moveToPage(page) {
+                        afterPageSwitch()
+                    }
+                } else {
+                    afterPageSwitch()
                 }
             }
-            if (page != this.page.get()) {
-                moveToPage(page)
-            }
-            val line = max(min((userLine - pageStartingLineCounts[page - 1]).toInt(), codeArea.paragraphs.size), 1) - 1
-            // TODO: Should be long
-            val column = min(userColumn.toInt(), codeArea.getParagraph(line).length())
-            moveToLineColumn(line, column)
         }
     }
 
@@ -982,48 +1053,32 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
             else -> {
                 val page = getPageOfIndex(index)
-                if (page != this.page.get()) {
-                    moveToPage(page)
-                } else {
-                    isOnCorrectPage = true
-                }
-                val inPageIndex: Int = (index - ((page - 1) * this.settingsController.getSettings().pageSize)).toInt()
-                if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
-                    // Problem: In Disk Pagination Mode, the page switch is done async because the user might need
-                    // to confirm that he really wants to switch the page (text needs to be saved to disk or changes would be lost)
-                    // so we have to wait until the page was actually switched
-                    // and THEN we can move
-                    val mainView = this
-                    runAsync {
-                        while (!isOnCorrectPage) {
-                            Thread.sleep(40)
-                        }
-                        Platform.runLater {
-                            mainView.moveToLineColumn(0, inPageIndex) {
-                                if (callback != null) {
-                                    callback()
-                                }
-                            }
-                        }
-                    }
-                } else {
+                val afterPageMove = {
+                    val inPageIndex: Int = (index - ((page - 1) * this.settingsController.getSettings().pageSize)).toInt()
                     this.moveToLineColumn(0, inPageIndex) {
                         if (callback != null) {
                             callback()
                         }
                     }
                 }
-
+                if (page != this.page.get()) {
+                    moveToPage(page) {
+                        afterPageMove()
+                    }
+                } else {
+                    afterPageMove()
+                }
             }
         }
     }
 
     private fun moveToFind(find: Find) {
-        moveToIndex(find.start)
-        lastFindStart = codeArea.anchor
-        val findLength = find.end - find.start
-        val findEnd = codeArea.anchor + findLength.toInt()
-        lastFindEnd = findEnd
+        moveToIndex(find.start) {
+            lastFindStart = codeArea.anchor
+            val findLength = find.end - find.start
+            val findEnd = codeArea.anchor + findLength.toInt()
+            lastFindEnd = findEnd
+        }
     }
 
     private fun getPageOfIndex(index: Long): Int {
@@ -1617,7 +1672,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val accessFile = RandomAccessFile(file, "r")
                 var totalBytesRead = 0
                 for (pageIndex in 0 until this.maxPage.get()) {
-                    val startCharIndex = pageSize * pageIndex
+                    val startCharIndex = pageSize.toLong() * pageIndex.toLong()
                     val startByteIndex = pageStartingByteIndexes[pageIndex]
                     val endByteIndex = if (pageIndex + 1 >= pageStartingByteIndexes.size) {
                         fileSize
@@ -1672,7 +1727,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val pageSize = this.settingsController.getSettings().pageSize
         if (displayMode.get() == DisplayMode.PLAIN) {
             for (find in localFinds) {
-                codeArea.setStyle(find.start.toInt(), find.end.toInt(), listOf("searchHighlight"))
+                codeArea.setStyle(find.start.toInt(), find.end.toInt(), listOf("searchAllHighlight"))
             }
         } else {
             val pageOffset = this.getPageIndex() * pageSize.toLong()
@@ -1680,7 +1735,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 if (isInPage(find)) {
                     val start = max(find.start - pageOffset, 0).toInt()
                     val end = min(find.end - pageOffset, pageSize.toLong() - 1).toInt()
-                    codeArea.setStyle(start, end, listOf("searchHighlight"))
+                    codeArea.setStyle(start, end, listOf("searchAllHighlight"))
                 }
             }
         }
@@ -1748,7 +1803,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun isInPage(find: Find): Boolean {
-        val pageSize = this.settingsController.getSettings().pageSize
+        val pageSize = this.settingsController.getSettings().pageSize.toLong()
         val lowerBound = this.getPageIndex() * pageSize
         val upperBound = this.page.get() * pageSize
         return find.end in lowerBound until upperBound || find.start in lowerBound until upperBound
@@ -1818,14 +1873,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
         // Move to search result
         if (find != null) {
-            isOnCorrectPage = false
             moveToIndex(find.start) {
                 Platform.runLater {
                     val findStart = codeArea.anchor
                     val findLength = find.end - find.start
                     val findEnd = codeArea.anchor + findLength.toInt()
-                    // TODO: Next/Previous Button to navigate between find results
-                    // User might be using find next button to navigate through search results of all finds
+                    // LastFindStart/End => Index in Page
+                    // allFinds Find => Index in whole file
+                    // TODO: Recalculate or save lastFind as Find object with index in file
+                    //   and reapply allFinds styling after clearing
                     val isInAllFinds = allFinds.find { it == find } != null
                     if (!isInAllFinds && lastFindEnd < codeArea.text.length) { // Page switch might have cleared all Styling
                         codeArea.clearStyle(lastFindStart, lastFindEnd)
