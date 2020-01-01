@@ -11,11 +11,34 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class FileWatcher(private val file: File, private val onChange: () -> Unit) : Thread() {
     private val logger = KotlinLogging.logger {}
+    private val lock = Object()
     private val stop = AtomicBoolean(false)
+
+    private var ignore = false
+    private var lastModified = 0L
+
     /**
      * Signals the File Watcher to ignore file events (e.g. VPEX is modifying the file)
      */
-    val ignore = AtomicBoolean(false)
+    fun startIgnoring() {
+        synchronized(lock) {
+            ignore = true
+        }
+    }
+
+    /**
+     * Stop ignoring file watcher events.
+     * The new modification date of the file will be used to check that following file watcher events
+     * do not refer to said modification
+     * This may happen since the file watcher is only polled every so often
+     * @param newModificationDate the modification Date of the file after the operation
+     */
+    fun stopIgnoring(newModificationDate: Long) {
+        synchronized(lock) {
+            ignore = false
+            lastModified = newModificationDate
+        }
+    }
 
     fun stopThread() {
         logger.info("Stopping FileWatcher")
@@ -48,8 +71,14 @@ class FileWatcher(private val file: File, private val onChange: () -> Unit) : Th
                             yield()
                             continue
                         } else if (kind === StandardWatchEventKinds.ENTRY_MODIFY && filename.toString() == file.name) {
-                            if (!ignore.get()) {
-                                onChange()
+                            synchronized(lock) {
+                                if (!ignore) {
+                                    if (file.lastModified() != lastModified) {
+                                        onChange()
+                                    } else {
+                                        logger.debug("Ignoring watch event since last modification date is untouched")
+                                    }
+                                }
                             }
                         }
                         val valid = key.reset()

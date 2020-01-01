@@ -338,7 +338,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         statusTextProperty.set("Searching")
-                                        searchAll({ finds ->
+                                        searchAll({ finds, _, _ ->
                                             Platform.runLater {
                                                 highlightFinds(finds)
                                             }
@@ -381,7 +381,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         enableWhen { vpexExecutor.isRunning.not() }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
-                                        searchAll({ })
+                                        statusTextProperty.set("Searching")
+                                        searchAll({ _, _, _ -> }, endCallback = {
+                                            statusTextProperty.set("")
+                                        })
                                     }
                                 }
                             }
@@ -684,13 +687,17 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         fileProgressProperty.set(-1.0)
         fileWatcher?.stopThread()
         fileWatcher = null
+        resetFinds()
+        showedEndOfFileDialog = false
+    }
+
+    private fun resetFinds() {
         allFinds.clear()
         allFindsSize.set(-1)
         lastFind = Find(0L, 0L)
         lastFindStart = 0
         lastFindEnd = 0
         currentAllFindsIndex.set(-1)
-        showedEndOfFileDialog = false
     }
 
     private fun closeSearchAndReplace() {
@@ -1316,7 +1323,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val outputFile = choseFile()
             if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
                 Thread {
-                    fileWatcher?.ignore?.set(true)
+                    fileWatcher?.startIgnoring()
                     val inputFile = getFile()
                     val inputFileLength = inputFile.length()
                     val xmlOutput = StreamResult(FileWriter(outputFile))
@@ -1375,7 +1382,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
      * @param file
      */
     private fun reopenFile(file: File) {
-        fileWatcher?.ignore?.set(false)
+        fileWatcher?.stopIgnoring(file.lastModified())
         Platform.runLater {
             fileProgressProperty.set(-1.0)
             statusTextProperty.set("")
@@ -1406,9 +1413,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val file = this.file
         if (file != null && !saveLockProperty.get() && displayMode.get() != DisplayMode.DISK_PAGINATION) {
             val text = getFullText()
-            fileWatcher?.ignore?.set(true)
+            fileWatcher?.startIgnoring()
             Files.write(file.toPath(), text.toByteArray())
-            fileWatcher?.ignore?.set(false)
+            fileWatcher?.stopIgnoring(file.lastModified())
             isDirty.set(false)
             logger.info("Saved")
         } else {
@@ -1424,14 +1431,15 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         val file = fileChooser.showSaveDialog(FX.primaryStage)
         if (file != null) {
             settingsController.setOpenerBasePath(file.parentFile.absolutePath)
+            fileWatcher?.startIgnoring()
+            fileWatcher?.stopThread()
             if (displayMode.get() != DisplayMode.DISK_PAGINATION) {
                 val text = getFullText()
-                fileWatcher?.ignore?.set(true)
                 Files.write(file.toPath(), text.toByteArray())
-                fileWatcher?.ignore?.set(false)
                 this.file = file
                 setFileTitle(file)
                 isDirty.set(false)
+                startFileWatcher(file)
                 logger.info("Saved as")
             } else {
                 statusTextProperty.set("Saving")
@@ -1467,10 +1475,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         page++
                     }
 
-                    fileWatcher?.ignore?.set(true)
                     Files.move(tmpFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                    fileWatcher?.ignore?.set(false)
-
+                    startFileWatcher(file)
 
                     this.file = file
                     logger.info("Saved as")
@@ -1508,21 +1514,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         setFileTitle(file)
         codeArea.replaceText("")
         fullText = ""
-        val fileWatcher = FileWatcher(file) {
-            Platform.runLater {
-                if (!isAskingForFileReload) {
-                    isAskingForFileReload = true
-                    confirmation("Update", "The file was updated externally. Reload?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
-                        isAskingForFileReload = false
-                        if (it.buttonData.isDefaultButton) {
-                            openFile(file)
-                        }
-                    })
-                }
-            }
-        }
-        this.fileWatcher = fileWatcher
-        fileWatcher.start()
+        startFileWatcher(file)
         val settings = settingsController.getSettings()
         if (settings.diskPagination && file.length() > settings.diskPaginationThreshold * 1024 * 1024) {
             logger.info { "Opening file in disk pagination mode" }
@@ -1552,6 +1544,24 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
         this.codeArea.moveTo(0, 0)
         this.isDirty.set(false)
+    }
+
+    private fun startFileWatcher(file: File) {
+        val fileWatcher = FileWatcher(file) {
+            Platform.runLater {
+                if (!isAskingForFileReload) {
+                    isAskingForFileReload = true
+                    confirmation("Update", "The file was updated externally. Reload?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
+                        isAskingForFileReload = false
+                        if (it.buttonData.isDefaultButton) {
+                            openFile(file)
+                        }
+                    })
+                }
+            }
+        }
+        this.fileWatcher = fileWatcher
+        fileWatcher.start()
     }
 
     private fun setFileTitle(file: File) {
@@ -1668,7 +1678,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
      * The callback will either be called once with all findings (plain/pagination)
      * or once per page with all findings of that page (disk pagination)
      */
-    private fun searchAll(callback: (finds: List<Find>) -> Unit, endCallback: (() -> Unit)? = null) {
+    private fun searchAll(callback: (finds: List<Find>, text: String, startCharIndex: Long) -> Unit, endCallback: (() -> Unit)? = null) {
         allFinds.clear()
 
         val searchText = getSearchText()
@@ -1715,7 +1725,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                             .map { find -> Find(find.start + startCharIndex, find.end + startCharIndex) }
                             .filter { find -> !allFinds.contains(find) } // Filter Duplicates
                     allFinds.addAll(finds)
-                    callback(finds)
+                    callback(finds, string, startCharIndex)
                     Platform.runLater {
                         allFindsSize.set(allFinds.size)
                         fileProgressProperty.set(totalBytesRead / fileSize.toDouble())
@@ -1733,7 +1743,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             } else {
                 val fullText = getFullText()
                 allFinds.addAll(searchAndReplaceController.findAll(fullText, searchText, interpreterMode, ignoreCase))
-                callback(allFinds)
+                callback(allFinds, fullText, 0)
             }
             Platform.runLater {
                 allFindsSize.set(allFinds.size)
@@ -1766,6 +1776,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun replaceAll() {
+        statusTextProperty.set("Replacing. I did not like the old term anyway.")
+        val replacementText = this.replaceProperty.get()
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
             // We need to read the original file page by page,
             // do the replacements on the fly
@@ -1775,34 +1787,38 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             // So let the user chose a new one
             val outputFile = choseFile()
             if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
-                val writer = FileWriter(outputFile)
-                // End Callback will be executed async in a non-ui-thread
-                this.searchAll({}, endCallback = {
-                    // TODO: Write to new file with replacements
-                    // Search is done - allFinds is now filled
-//                        if (allFinds.size > 0) {
-//                            allFinds.sortBy { it.start }
-//                            var startIndex = 0L
-//                            var endIndex = 0L
-//                            for (find in allFinds) {
-//                                endIndex = find.start
-//                                writer.write()
-//                            }
-//                        }
-                })
+                FileWriter(outputFile).use { writer ->
+                    // End Callback will be executed async in a non-ui-thread
+                    this.searchAll({ unsortedFinds, text, charIndex ->
+                        // One Page has been searched. Write that page to file with replacements
+                        val finds = unsortedFinds.sortedBy { it.start }
+                        // Indexes can be Int since they refer to indexes withing a single page
+                        var startIndex = 0
+                        var endIndex: Int
+                        for (find in finds) {
+                            // find index refers to whole file
+                            // char index shows offset of this page in the whole file
+                            endIndex = (find.start - charIndex).toInt()
+                            // Write all Text before this find followed by the replacement
+                            writer.write(text, startIndex, endIndex - startIndex)
+                            writer.write(replacementText)
+                            startIndex = (find.end - charIndex).toInt()
+                        }
+                        // Whats left of the page
+                        endIndex = text.length
+                        writer.write(text, startIndex, endIndex - startIndex)
+                    })
+                }
             } else {
                 logger.info { "User did not chose a valid file - aborting" }
-                statusTextProperty.set("")
             }
 
         } else {
-            val fulltext = getFullText()
             val stringBuilder = StringBuilder()
-            val replacementText = this.replaceProperty.get()
             var lastEndIndex = 0
 
             // Callback will be executed once with all findings async in a non-ui-thread
-            this.searchAll({ finds ->
+            this.searchAll({ finds, fulltext, _ ->
                 logger.debug("Replacing {} findings", finds.size)
                 for (find in finds) {
                     stringBuilder.append(fulltext.substring(lastEndIndex, find.start.toInt()))
@@ -1820,9 +1836,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     logger.debug("Text replaced")
                 }
             })
-
         }
-
+        statusTextProperty.set("Replacing")
     }
 
     private fun isInPage(find: Find): Boolean {
