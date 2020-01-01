@@ -91,7 +91,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private var lastFind = Find(0L, 0L)
     private val allFinds = mutableListOf<Find>()
     private val allFindsSize = SimpleIntegerProperty(-1)
-    private val currentAllFindsIndex = SimpleIntegerProperty(-1)
+    private val currentAllFindsIndex = SimpleIntegerProperty(-1).apply {
+        onChange { currentAllFindsDisplayIndex.set(it + 1) }
+    }
     private val currentAllFindsDisplayIndex = SimpleIntegerProperty(-1)
     private val hasFindProperty = SimpleBooleanProperty(false)
     private val searchDirection = SimpleObjectProperty<Any>()
@@ -338,21 +340,21 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         statusTextProperty.set("Searching")
+                                        allFindsSize.set(0)
+                                        currentAllFindsIndex.set(-1) // Shows as 0 in gui (display index)
+                                        var hasSelectedFind = false
                                         searchAll({ finds, _, _ ->
                                             Platform.runLater {
                                                 highlightFinds(finds)
+                                                if (!hasSelectedFind && finds.isNotEmpty()) {
+                                                    hasSelectedFind = true
+                                                    currentAllFindsIndex.set(0)
+                                                    moveToFind(finds.first())
+                                                }
+                                                allFindsSize.set(allFinds.size)
                                             }
                                         }, endCallback = {
                                             Platform.runLater {
-                                                val firstInPage = if (displayMode.get() == DisplayMode.PLAIN) {
-                                                    allFinds.minBy { it.start }
-                                                } else {
-                                                    allFinds.filter { isInPage(it) }.minBy { it.start }
-                                                }
-                                                if (firstInPage != null) {
-                                                    currentAllFindsIndex.set(allFinds.indexOf(firstInPage))
-                                                    moveToFind(firstInPage)
-                                                }
                                                 statusTextProperty.set("")
                                             }
                                         })
@@ -375,15 +377,29 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         enableWhen { showReplaceProperty.and(vpexExecutor.isRunning.not()) }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
-                                        replaceAll()
+                                        resetFinds()
+                                        statusTextProperty.set("Replacing. (0 so far)")
+                                        replaceAll({
+                                            statusTextProperty.set("Replacing. (${allFinds.size} so far)")
+                                        }, endCallback = {
+                                            statusTextProperty.set("")
+                                        })
                                     }
                                     button("Count") {
                                         enableWhen { vpexExecutor.isRunning.not() }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
-                                        statusTextProperty.set("Searching")
-                                        searchAll({ _, _, _ -> }, endCallback = {
-                                            statusTextProperty.set("")
+                                        statusTextProperty.set("Counting")
+                                        allFindsSize.set(0)
+                                        currentAllFindsIndex.set(-1) // Shows as 0 in gui (display index)
+                                        searchAll({ _, _, _ ->
+                                            Platform.runLater {
+                                                allFindsSize.set(allFinds.size)
+                                            }
+                                        }, endCallback = {
+                                            Platform.runLater {
+                                                statusTextProperty.set("")
+                                            }
                                         })
                                     }
                                 }
@@ -395,7 +411,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                 hbox(5) {
                                     alignment = Pos.CENTER
                                     textfield(currentAllFindsDisplayIndex) {
-                                        currentAllFindsIndex.onChange { currentAllFindsDisplayIndex.set(currentAllFindsIndex.get() + 1) }
                                         prefWidth = 50.0
                                         maxWidth = 50.0
                                     }.action {
@@ -419,7 +434,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                     alignment = Pos.CENTER
                                     button("<<") {
                                         disableWhen {
-                                            currentAllFindsDisplayIndex.isEqualTo(1)
+                                            currentAllFindsDisplayIndex.lessThanOrEqualTo(1)
                                         }
                                     }.action {
                                         //                                        val dirty = isDirty.get()
@@ -1092,7 +1107,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val findStart = codeArea.anchor
                 val findLength = find.end - find.start
                 val findEnd = codeArea.anchor + findLength.toInt()
-                codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
                 if (isInPage(lastFind)) {
                     val lastFindWasInAllFinds = allFinds.find { it == lastFind } != null
                     if (lastFindWasInAllFinds) {
@@ -1102,6 +1116,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         codeArea.clearStyle(lastFindStart, lastFindEnd)
                     }
                 }
+                codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
                 lastFindStart = codeArea.anchor
                 lastFindEnd = findEnd
                 lastFind = find
@@ -1727,15 +1742,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     allFinds.addAll(finds)
                     callback(finds, string, startCharIndex)
                     Platform.runLater {
-                        allFindsSize.set(allFinds.size)
                         fileProgressProperty.set(totalBytesRead / fileSize.toDouble())
                     }
                     if (Thread.currentThread().isInterrupted) {
                         break
                     }
-                }
-                if (endCallback != null) {
-                    endCallback()
                 }
                 Platform.runLater {
                     fileProgressProperty.set(-1.0)
@@ -1745,8 +1756,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 allFinds.addAll(searchAndReplaceController.findAll(fullText, searchText, interpreterMode, ignoreCase))
                 callback(allFinds, fullText, 0)
             }
-            Platform.runLater {
-                allFindsSize.set(allFinds.size)
+            if (endCallback != null) {
+                endCallback()
             }
         }
     }
@@ -1775,8 +1786,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     }
 
-    private fun replaceAll() {
-        statusTextProperty.set("Replacing. I did not like the old term anyway.")
+    private fun replaceAll(callback: () -> Unit, endCallback: (() -> Unit)? = null) {
         val replacementText = this.replaceProperty.get()
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
             // We need to read the original file page by page,
@@ -1807,10 +1817,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         // Whats left of the page
                         endIndex = text.length
                         writer.write(text, startIndex, endIndex - startIndex)
-                    })
+                    }, endCallback = endCallback)
                 }
             } else {
                 logger.info { "User did not chose a valid file - aborting" }
+                if (endCallback != null) {
+                    endCallback()
+                }
             }
 
         } else {
@@ -1835,9 +1848,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     }
                     logger.debug("Text replaced")
                 }
-            })
+            }, endCallback = endCallback)
         }
-        statusTextProperty.set("Replacing")
     }
 
     private fun isInPage(find: Find): Boolean {
