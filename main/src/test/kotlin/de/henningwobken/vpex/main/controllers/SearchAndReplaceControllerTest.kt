@@ -140,8 +140,8 @@ class SearchAndReplaceControllerTest {
         val textMode = SearchTextMode.NORMAL
         val finds = searchAndReplaceController.findAll("abababab", "abab", textMode, false)
         assertEquals(2, finds.size)
-        assertEquals(0, finds[0].start)
-        assertEquals(4, finds[1].start)
+        assertEquals(Find(0, 4), finds[0])
+        assertEquals(Find(4, 8), finds[1])
     }
 
     @Test

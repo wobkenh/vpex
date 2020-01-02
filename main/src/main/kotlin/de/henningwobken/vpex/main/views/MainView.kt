@@ -339,6 +339,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         findNext()
                                     }
                                     button("Find all") {
+                                        id = "findAll"
                                         enableWhen { vpexExecutor.isRunning.not() }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
@@ -1527,7 +1528,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
     }
 
-    private fun openFile(file: File) {
+    fun openFile(file: File) {
         if (this.file != null) {
             logger.info("Closing currently open file")
             closeFile()
