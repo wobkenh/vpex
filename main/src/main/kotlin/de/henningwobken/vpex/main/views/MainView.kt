@@ -273,6 +273,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         fieldset {
                             field("Find") {
                                 textfield(findProperty) {
+                                    id = "findField"
                                     findTextField = this
                                     this.setOnKeyPressed {
                                         // Select the find if there was a find and the user did not change his position in the code area
@@ -292,7 +293,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                             }
                             field("Replace") {
                                 removeWhen(showReplaceProperty.not())
-                                textfield(replaceProperty)
+                                textfield(replaceProperty) {
+                                    id = "replaceField"
+                                }
                             }
                         }
                         fieldset {
@@ -374,15 +377,20 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                                         codeArea.replaceText(lastFindStart, lastFindEnd, replaceProperty.get())
                                     }
                                     button("Replace all") {
+                                        id = "replaceAll"
                                         enableWhen { showReplaceProperty.and(vpexExecutor.isRunning.not()) }
                                         ViewHelper.fillHorizontal(this)
                                     }.action {
                                         resetFinds()
                                         statusTextProperty.set("Replacing. (0 so far)")
                                         replaceAll({
-                                            statusTextProperty.set("Replacing. (${allFinds.size} so far)")
+                                            Platform.runLater {
+                                                statusTextProperty.set("Replacing. (${allFinds.size} so far)")
+                                            }
                                         }, endCallback = {
-                                            statusTextProperty.set("")
+                                            Platform.runLater {
+                                                statusTextProperty.set("")
+                                            }
                                         })
                                     }
                                     button("Count") {
@@ -1598,6 +1606,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun getRichTextArea(): CodeArea {
         logger.info("Creating text area")
         val codeArea = CodeArea()
+        codeArea.id = "codeArea"
         logger.info("Setting wrap text to " + settingsController.getSettings().wrapText)
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         codeArea.selectionProperty().onChange {
@@ -1635,8 +1644,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
             if (this.hasFindProperty.get()) {
                 // The edit has invalidated the search result => Remove Highlight
-                if (this.codeArea.text.length >= this.findProperty.get().length &&
-                        this.codeArea.text.substring(this.lastFindStart, this.lastFindEnd) != this.findProperty.get()) {
+                if (this.codeArea.text.length >= this.lastFindStart &&
+                        !this.codeArea.text.substring(
+                                this.lastFindStart,
+                                min(this.lastFindEnd, this.codeArea.text.length)
+                        ).startsWith(this.findProperty.get())) {
                     logger.info("Removed Highlighting because search result was invalidated through editing")
                     removeFindHighlighting()
                 }
@@ -1894,11 +1906,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
         // Optional offset which prevents us from finding the last find again by skipping the first character
         val searchDirection = searchDirection.get() as SearchDirection
-        val skipLastFindOffset = if (lastFindEnd > 0) {
+        val skipLastFindOffset = if (lastFindEnd > 0 && codeArea.caretPosition == lastFindStart) {
+            val lastFindLength = lastFindEnd - lastFindStart
             if (searchDirection == SearchDirection.UP) {
-                -1
+                -lastFindLength
             } else {
-                1
+                lastFindLength
             }
         } else 0
 
@@ -1930,6 +1943,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             } else {
                 "Start reached. Press enter twice to search from the bottom."
             }
+            findTextField.requestFocus()
+            findTextField.selectAll()
             val alert = Alert(INFORMATION, text)
             alert.title = "End of file"
             alert.dialogPane.minHeight = Region.USE_PREF_SIZE

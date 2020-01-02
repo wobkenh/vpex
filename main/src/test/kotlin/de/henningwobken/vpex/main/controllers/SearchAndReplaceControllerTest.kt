@@ -136,6 +136,15 @@ class SearchAndReplaceControllerTest {
     }
 
     @Test
+    fun `find all duplicates`() {
+        val textMode = SearchTextMode.NORMAL
+        val finds = searchAndReplaceController.findAll("abababab", "abab", textMode, false)
+        assertEquals(2, finds.size)
+        assertEquals(0, finds[0].start)
+        assertEquals(4, finds[1].start)
+    }
+
+    @Test
     fun `find all ignore case`() {
         val textMode = SearchTextMode.NORMAL
         val ignoreCase = true

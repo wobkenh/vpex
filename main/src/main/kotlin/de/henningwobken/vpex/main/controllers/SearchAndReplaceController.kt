@@ -35,10 +35,11 @@ class SearchAndReplaceController : Controller() {
                 allFinds.add(Find(matcher.start().toLong(), matcher.end().toLong()))
             }
         } else {
+            val length = searchText.length
             var index = fullText.indexOf(searchText, 0, ignoreCase)
             while (index < fullText.length && index >= 0) {
                 allFinds.add(Find(index.toLong(), (index + searchText.length).toLong()))
-                index = fullText.indexOf(searchText, index + 1, ignoreCase)
+                index = fullText.indexOf(searchText, index + length, ignoreCase)
             }
         }
         return allFinds
