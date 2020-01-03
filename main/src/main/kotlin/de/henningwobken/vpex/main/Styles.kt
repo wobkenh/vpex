@@ -52,7 +52,7 @@ class Styles : Stylesheet() {
     init {
         unchanged {
             textFill = Color.WHITE
-            backgroundColor += Color.rgb(31, 30, 47)
+            backgroundColor += primaryColor
             fontWeight = FontWeight.BOLD
         }
         changed {

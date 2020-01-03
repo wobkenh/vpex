@@ -1,0 +1,39 @@
+.tab .tab-label {
+    -fx-text-fill: #fafafa;
+}
+
+.tab-changed {
+    -fx-opacity: 0.5;
+    -fx-background-color: #8F140A;
+}
+
+.tab-changed:selected {
+    -fx-opacity: 1;
+}
+
+.tab-unchanged {
+    -fx-opacity: 0.5;
+    -fx-background-color: #1F1E2F;
+}
+
+.tab-unchanged:selected {
+    -fx-opacity: 1;
+    -fx-background-color: #262537;
+}
+
+.tab-close-button {
+    -fx-background-color: white;
+}
+
+.tab {
+    -fx-focus-color: transparent;
+}
+
+.tab-pane:top *.tab-header-area {
+    -fx-background-color: white;
+    -fx-padding: 5px 5px 0 5px; /* overridden as 5 2 0 0 */
+}
+
+/*.tab-pane *.tab-header-background {*/
+/*-fx-background-color: transparent;*/
+/*}*/

@@ -2,6 +2,7 @@ package de.henningwobken.vpex.main.controllers
 
 import de.henningwobken.vpex.main.model.Settings
 import de.henningwobken.vpex.main.model.VpexConstants
+import javafx.beans.property.SimpleObjectProperty
 import javafx.scene.control.Alert
 import javafx.scene.layout.Region
 import mu.KotlinLogging
@@ -21,10 +22,12 @@ class SettingsController : Controller() {
     private var settings: Settings
     private var openerBasePath: String = "./"
     private val contextMenuDefault = VpexConstants.isWindows
+    val settingsProperty = SimpleObjectProperty<Settings>()
 
 
     init {
         settings = loadSettings()
+        settingsProperty.set(settings)
         loadOpenerBasePath()
     }
 
@@ -81,6 +84,7 @@ class SettingsController : Controller() {
 
     fun saveSettings(settings: Settings) {
         this.settings = settings
+        settingsProperty.set(settings)
         val properties = Properties()
         properties.setProperty("schemaBasePath", settings.schemaBasePathList.joinToString(","))
         properties.setProperty("wrapText", settings.wrapText.toString())
