@@ -53,10 +53,11 @@ class TabView : Fragment("File") {
     val fileProgressProperty = SimpleDoubleProperty(-1.0)
     val lineCount = SimpleIntegerProperty(0)
     val charCountProperty = SimpleIntegerProperty(0)
+    val hasFile = SimpleBooleanProperty(false)
+    val statusTextProperty = SimpleStringProperty("")
     private var file: File? = null
     private var codeArea: CodeArea by singleAssign()
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
-    private val statusTextProperty = SimpleStringProperty("")
 
     private lateinit var findTextField: TextField
 
@@ -665,6 +666,7 @@ class TabView : Fragment("File") {
                 val text = getFullText()
                 Files.write(file.toPath(), text.toByteArray())
                 this.file = file
+                this.hasFile.set(true)
                 setFileTitle(file)
                 isDirty.set(false)
                 startFileWatcher(file)
@@ -708,6 +710,7 @@ class TabView : Fragment("File") {
                     startFileWatcher(file)
 
                     this.file = file
+                    this.hasFile.set(true)
                     logger.info("Saved as")
                     Platform.runLater {
                         statusTextProperty.set("")
@@ -728,6 +731,8 @@ class TabView : Fragment("File") {
         }
         logger.info("Opening file ${file.absolutePath}")
         this.file = file
+        this.hasFile.set(true)
+        hasFile.set(true)
         setFileTitle(file)
         codeArea.replaceText("")
         fullText = ""
@@ -737,16 +742,18 @@ class TabView : Fragment("File") {
             logger.info { "Opening file in disk pagination mode" }
             displayMode.set(DisplayMode.DISK_PAGINATION)
             dirtySinceLastSync = true
-            moveToPage(1, SyncDirection.TO_CODEAREA)
             lineCount.bind(pageTotalLineCount)
+            moveToPage(1, SyncDirection.TO_CODEAREA) {
+                this.codeArea.moveTo(0, 0)
+            }
         } else if (this.settingsController.getSettings().pagination) {
             this.fullText = file.readText()
             if (fullText.length > settingsController.getSettings().paginationThreshold) {
                 logger.info { "Opening file in pagination mode" }
                 displayMode.set(DisplayMode.PAGINATION)
                 dirtySinceLastSync = true
-                moveToPage(1, SyncDirection.TO_CODEAREA)
                 lineCount.bind(pageTotalLineCount)
+                moveToPage(1, SyncDirection.TO_CODEAREA)
             } else {
                 logger.info { "Opening file in plain mode" }
                 displayMode.set(DisplayMode.PLAIN)
@@ -775,6 +782,7 @@ class TabView : Fragment("File") {
             fileWatcher.stopWatching(oldFile)
         }
         file = null
+        hasFile.set(false)
         replaceText("")
         fullText = ""
         lineCount.bind(codeArea.paragraphs.sizeProperty())
@@ -1564,14 +1572,14 @@ class TabView : Fragment("File") {
                 } else {
                     "Start reached. Press enter twice to search from the bottom."
                 }
-                findTextField.requestFocus()
-                findTextField.selectAll()
                 val alert = Alert(Alert.AlertType.INFORMATION, text)
                 alert.title = "End of file"
                 alert.dialogPane.minHeight = Region.USE_PREF_SIZE
                 alert.showAndWait()
                 showedEndOfFileDialog = true
                 showedEndOfFileDialogCaretPosition = codeArea.caretPosition
+                findTextField.requestFocus()
+                findTextField.selectAll()
             }
         }
 

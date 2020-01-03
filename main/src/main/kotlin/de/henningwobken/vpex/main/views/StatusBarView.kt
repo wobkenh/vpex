@@ -263,6 +263,7 @@ class StatusBarView : View() {
         displayMode.bind(tabView.displayMode)
         lineCount.bind(tabView.lineCount)
         charCountProperty.bind(tabView.charCountProperty)
+        statusTextProperty.bind(tabView.statusTextProperty)
         moveToPage.set { page ->
             tabView.moveToPage(page)
         }
@@ -297,5 +298,7 @@ class StatusBarView : View() {
         cursorLine.set(0)
         cursorColumn.unbind()
         cursorColumn.set(0)
+        statusTextProperty.unbind()
+        statusTextProperty.set("")
     }
 }

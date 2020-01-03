@@ -193,7 +193,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     logger.info { "Tab Selection changed to file ${newValue.text}" }
                     statusBarView.bind(tabController.getTabView(newValue))
                     Platform.runLater {
-                        currentlyActiveTabView().focusCodeArea()
+                        // Without runLater, the focus does not work
+                        // And since runLater executes this code async, we need to check that there still is a selected tab
+                        if (tabPane.selectionModel.selectedItem != null) {
+                            currentlyActiveTabView().focusCodeArea()
+                        }
                     }
                 } else {
                     statusBarView.unbind()
@@ -330,7 +334,8 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                     tabPane.tabs.filter { it != tab }.forEach { closeTab(it) }
                 }
                 item("Close All").action {
-                    tabPane.tabs.forEach { closeTab(it) }
+                    tabPane.tabs.slice(IntRange(0, tabPane.tabs.size - 1))
+                            .forEach { closeTab(it) }
                 }
                 item("Close All to the Left").action {
                     val index = tabPane.tabs.indexOf(tab)
@@ -344,12 +349,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
                 separator()
                 item("Show in Explorer") {
-                    // TODO: Disable when tab does not have a file
-//                    disableWhen {  }
+                    disableWhen { view.hasFile.not() }
                 }.action {
                     val currentFile = view.getFile()
                     if (currentFile != null) {
-                        Desktop.getDesktop().open(currentFile)
+                        Thread {
+                            // TODO: Highlight File in Directory (Available in Java 9+)
+                            Desktop.getDesktop().open(currentFile.parentFile)
+                        }.start()
                     }
                 }
             }
