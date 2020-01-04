@@ -87,7 +87,7 @@ class FileWatcher : Controller() {
                 logger.info("File Watcher already exists. Adding.")
                 watchEntry.fileEntries.add(fileEntry)
             } else {
-                logger.info("File Watcher does not exist. Creating WatchKey for ${file.absolutePath}.")
+                logger.info("File Watcher does not exist. Creating WatchKey for ${file.parentFile.absolutePath}.")
                 val watchKey = parentPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY)
                 val newWatchEntry = WatchEntry(parentPath, watchKey, mutableListOf(fileEntry))
                 watchEntries.add(newWatchEntry)
@@ -108,7 +108,7 @@ class FileWatcher : Controller() {
                             continue
                         } else if (kind === StandardWatchEventKinds.ENTRY_MODIFY) {
                             synchronized(lock) {
-                                val fileEntry = watchEntry.fileEntries.find { it.file.name == filename }
+                                val fileEntry = watchEntry.fileEntries.find { it.file.name == filename.toString() }
                                 if (fileEntry != null) {
                                     if (!fileEntry.ignore) {
                                         if (fileEntry.file.lastModified() != fileEntry.lastModified) {
