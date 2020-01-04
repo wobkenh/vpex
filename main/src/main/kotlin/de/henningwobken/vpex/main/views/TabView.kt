@@ -8,7 +8,6 @@ import de.henningwobken.vpex.main.xml.XmlFormattingService
 import javafx.application.Platform
 import javafx.beans.property.*
 import javafx.geometry.Pos
-import javafx.scene.Cursor
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
 import javafx.scene.control.TextField
@@ -1537,6 +1536,8 @@ class TabView : Fragment("File") {
 
     private fun findNextFromCurrentCaretPosition() {
 
+        Platform.runLater { statusTextProperty.set("Searching next") }
+
         // Find out where to start searching
         val offset = when (displayMode.get()) {
             DisplayMode.PLAIN -> codeArea.caretPosition
@@ -1563,6 +1564,7 @@ class TabView : Fragment("File") {
 
         // Callback after search is done
         val afterSearchResult = { find: Find? ->
+            Platform.runLater { statusTextProperty.set("") }
             // Move to search result
             if (find != null) {
                 moveToFind(find)
@@ -1589,13 +1591,15 @@ class TabView : Fragment("File") {
             if (file != null) {
                 val pageSize = this.settingsController.getSettings().pageSize
                 val charOffset = pageSize.toLong() * (this.page.get() - 1) + codeArea.caretPosition + skipLastFindOffset
-                // TODO: Cursor is overruled by text area. add progress callback to findNextFromDisk
-                FX.primaryStage.scene.cursor = Cursor.WAIT
                 vpexExecutor.execute {
                     val find = searchAndReplaceController.findNextFromDisk(file, searchText, charOffset, pageSize, pageStartingByteIndexes,
-                            searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase)
+                            searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase) { progress ->
+                        Platform.runLater {
+                            fileProgressProperty.set(progress)
+                        }
+                    }
                     Platform.runLater {
-                        FX.primaryStage.scene.cursor = Cursor.DEFAULT
+                        fileProgressProperty.set(-1.0)
                         afterSearchResult(find)
                     }
                 }

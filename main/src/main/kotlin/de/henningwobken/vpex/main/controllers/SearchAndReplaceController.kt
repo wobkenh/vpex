@@ -49,7 +49,6 @@ class SearchAndReplaceController : Controller() {
      * Finds the next occurrence of searchText in the file.
      *
      * @param file file to read form
-     * @param byteOffset offset in characters
      * @param pageSize size of a page in characters
      * @param pageStartingByteIndexes a list indicating at which byte index which page starts
      * @param searchDirection In which direction to start searching
@@ -68,7 +67,8 @@ class SearchAndReplaceController : Controller() {
                          pageStartingByteIndexes: List<Long>,
                          searchDirection: SearchDirection = SearchDirection.DOWN,
                          searchTextMode: SearchTextMode = SearchTextMode.NORMAL,
-                         ignoreCase: Boolean = false): Find? {
+                         ignoreCase: Boolean = false,
+                         progressCallback: ((Double) -> Unit)? = null): Find? {
         // We can't load full text into memory
         // therefore, we have to go page by page
         // this means that page breaks might hide/split search results
@@ -76,6 +76,7 @@ class SearchAndReplaceController : Controller() {
         // TODO: SearchDirection
         // TODO: Reimplement page overlap
         // TODO: Unified Service Method?
+        val totalLength = file.length().toDouble()
         val accessFile = RandomAccessFile(file, "r")
         var tmpFind: Find? = null
         var pageIndex = (charOffset / pageSize).toInt()
@@ -86,6 +87,9 @@ class SearchAndReplaceController : Controller() {
                 break
             }
             val startByteIndex = pageStartingByteIndexes[pageIndex]
+            if (progressCallback != null) {
+                progressCallback(startByteIndex / totalLength)
+            }
             accessFile.seek(startByteIndex)
             val read = accessFile.read(buffer)
             if (read == -1) {
