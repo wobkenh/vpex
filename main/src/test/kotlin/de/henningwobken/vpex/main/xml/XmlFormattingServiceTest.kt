@@ -44,7 +44,8 @@ class XmlFormattingServiceTest {
         val input = StringReader(xml)
         val output = StringWriter()
         xmlFormattingService.format(input, output, withNewLines = true, indentSize = 4)
-        assertEquals("", output.toString())
+        // TODO: Should there be a new line at the end?
+        assertEquals("\n", output.toString())
     }
 
     @Test
