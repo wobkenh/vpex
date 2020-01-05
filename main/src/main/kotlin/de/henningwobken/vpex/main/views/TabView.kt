@@ -10,7 +10,7 @@ import javafx.beans.property.*
 import javafx.geometry.Pos
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
-import javafx.scene.control.TextField
+import javafx.scene.control.TextArea
 import javafx.scene.control.TextInputDialog
 import javafx.scene.input.KeyCode
 import javafx.scene.layout.Priority
@@ -58,7 +58,7 @@ class TabView : Fragment("File") {
     private var codeArea: CodeArea by singleAssign()
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
 
-    private lateinit var findTextField: TextField
+    private lateinit var findTextField: TextArea
 
     private var isAskingForFileReload = false
 
@@ -111,9 +111,16 @@ class TabView : Fragment("File") {
                 hbox(20) {
                     fieldset {
                         field("Find") {
-                            textfield(findProperty) {
+                            textarea(findProperty) {
                                 id = "findField"
                                 findTextField = this
+                                isWrapText = false
+                                prefHeight = 27.0
+                                maxHeight = 27.0
+                                minHeight = 27.0
+                                maxWidth = 200.0
+                                prefRowCount = 1
+                                // TODO: Auto expanding Textfield up to 3 rows
                                 this.setOnKeyPressed {
                                     // Select the find if there was a find and the user did not change his position in the code area
                                     if (it.code == KeyCode.TAB && hasFindProperty.get() && lastFindStart == codeArea.anchor) {
@@ -122,18 +129,45 @@ class TabView : Fragment("File") {
                                         it.consume()
                                     } else if (it.code == KeyCode.ESCAPE) {
                                         closeSearchAndReplace()
+                                    } else if (it.code == KeyCode.ENTER) {
+                                        it.consume()
+                                        if (it.isShiftDown) {
+                                            val text = findTextField.text
+                                            val index = findTextField.caretPosition
+                                            findTextField.text = text.substring(0, index) + System.lineSeparator()
+                                            findTextField.positionCaret(index + 1)
+                                        } else {
+                                            findNext()
+                                        }
                                     }
-                                }
-                                this.setOnAction {
-                                    findNext()
                                 }
                             }
 
                         }
                         field("Replace") {
                             removeWhen(showReplaceProperty.not())
-                            textfield(replaceProperty) {
+                            textarea(replaceProperty) {
                                 id = "replaceField"
+                                isWrapText = false
+                                prefHeight = 27.0
+                                maxHeight = 27.0
+                                minHeight = 27.0
+                                maxWidth = 200.0
+                                prefRowCount = 1
+                                // TODO: Auto expanding Textfield up to 3 rows
+                                this.setOnKeyPressed {
+                                    if (it.code == KeyCode.ENTER) {
+                                        it.consume()
+                                        if (it.isShiftDown) {
+                                            val text = this.text
+                                            val index = this.caretPosition
+                                            this.text = text.substring(0, index) + System.lineSeparator()
+                                            this.positionCaret(index + 1)
+                                        } else {
+                                            // TODO: What to do here? Find next? Replace this?
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

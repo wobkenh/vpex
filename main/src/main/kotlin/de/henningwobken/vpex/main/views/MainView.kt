@@ -208,9 +208,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         bottom = statusBarView.root
 
         shortcut(KeyCombination.valueOf("Ctrl+Tab")) {
+            logger.debug("Selecting next tab")
             tabPane.selectionModel.selectNext()
         }
         shortcut(KeyCombination.valueOf("Ctrl+Shift+Tab")) {
+            logger.debug("Selecting last tab")
             tabPane.selectionModel.selectLast()
         }
 

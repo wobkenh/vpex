@@ -34,6 +34,14 @@
     -fx-padding: 5px 5px 0 5px; /* overridden as 5 2 0 0 */
 }
 
+#replaceField .scroll-pane {
+    -fx-hbar-policy: never;
+}
+
+#findField .scroll-pane {
+    -fx-hbar-policy: never;
+}
+
 /*.tab-pane *.tab-header-background {*/
 /*-fx-background-color: transparent;*/
 /*}*/
