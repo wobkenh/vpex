@@ -1,15 +1,21 @@
-package de.henningwobken.vpex.controller
+package de.henningwobken.vpex.main.controllers
 
-import de.henningwobken.vpex.main.controllers.SearchAndReplaceController
 import de.henningwobken.vpex.main.model.Find
 import de.henningwobken.vpex.main.model.SearchDirection
 import de.henningwobken.vpex.main.model.SearchTextMode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import tornadofx.*
+import java.io.File
 
 class SearchAndReplaceControllerTest {
-    private val searchAndReplaceController = SearchAndReplaceController()
+    private val scope = Scope(StringUtils(), SearchAndReplaceController())
+    private val fileCalculationController = FileCalculationController()
+    private val searchAndReplaceController = FX.getComponents(scope)[SearchAndReplaceController::class] as SearchAndReplaceController
+
+    // region findNext Fulltext
+
     private val fullText = """
         <?xml version="1.0" encoding="UTF-8"?>
         <shiporder xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="shiporder.xsd" orderid="889923">
@@ -123,10 +129,19 @@ class SearchAndReplaceControllerTest {
         assertEquals(Find(584, 589), finds[3])
 
         val noFinds = searchAndReplaceController.findAll(fullText, "banana", textMode, ignoreCase)
-        assertEquals(noFinds.size, 0)
+        assertEquals(0, noFinds.size)
 
         val noFinds2 = searchAndReplaceController.findAll(fullText, "PRICE", textMode, ignoreCase)
-        assertEquals(noFinds2.size, 0)
+        assertEquals(0, noFinds2.size)
+    }
+
+    @Test
+    fun `find all duplicates`() {
+        val textMode = SearchTextMode.NORMAL
+        val finds = searchAndReplaceController.findAll("abababab", "abab", textMode, false)
+        assertEquals(2, finds.size)
+        assertEquals(Find(0, 4), finds[0])
+        assertEquals(Find(4, 8), finds[1])
     }
 
     @Test
@@ -141,4 +156,40 @@ class SearchAndReplaceControllerTest {
         assertEquals(Find(584, 589), finds[3])
     }
 
+    // endregion findNext Fulltext
+
+    // region findNext Disk Pagination
+
+    private val testFile = loadResource("umlauts.xml")
+
+    @Test
+    fun `find next down normal with umlauts`() {
+
+
+        val pageSize = 50
+        val pageByteIndexes = fileCalculationController.calcStartingByteIndexesAndLineCounts(testFile, pageSize) {}.pageStartingByteIndexes
+        var find = searchAndReplaceController.findNextFromDisk(testFile, "search", 0, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        find!!
+        assertEquals(18, find.start)
+        assertEquals(24, find.end)
+
+        find = searchAndReplaceController.findNextFromDisk(testFile, "search", 19, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        find!!
+        assertEquals(91, find.start)
+        assertEquals(97, find.end)
+
+        find = searchAndReplaceController.findNextFromDisk(testFile, "search", 92, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        find!!
+        assertEquals(find.start, 140)
+        assertEquals(find.end, 146)
+
+        val noFind = searchAndReplaceController.findNextFromDisk(testFile, "search", 141, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        assertNull(noFind)
+    }
+
+    private fun loadResource(resource: String): File {
+        return File(SearchAndReplaceControllerTest::class.java.getResource("/find_next/$resource").toURI())
+    }
+
+    // end region findNext Disk Pagination
 }

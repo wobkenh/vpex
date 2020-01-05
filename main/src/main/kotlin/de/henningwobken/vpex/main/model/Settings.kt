@@ -5,7 +5,6 @@ import java.net.Proxy
 import java.util.*
 
 class Settings(
-        val openerBasePath: String,
         val schemaBasePathList: List<String>,
         val wrapText: Boolean,
         val prettyPrintIndent: Int,
@@ -22,7 +21,8 @@ class Settings(
         val diskPaginationThreshold: Int,
         val trustStore: String,
         val trustStorePassword: String,
-        val insecure: Boolean
+        val insecure: Boolean,
+        val contextMenu: Boolean
 ) {
     fun hasProxy(): Boolean = proxyHost.isNotBlank()
 

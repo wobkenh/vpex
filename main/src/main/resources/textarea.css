@@ -1,0 +1,21 @@
+.text-area {
+    -fx-background-insets: 0;
+    -fx-background-color: transparent, white, transparent, white;
+}
+
+.text-area .content {
+    -fx-background-color: transparent, white, transparent, white;
+}
+
+.text-area:focused .content {
+    -fx-background-color: transparent, white, transparent, white;
+}
+
+.text-area:focused {
+    -fx-highlight-fill: #0A92BF;
+}
+
+.text-area .content {
+    -fx-text-fill: gray;
+    -fx-highlight-fill: #0A92BF;
+}

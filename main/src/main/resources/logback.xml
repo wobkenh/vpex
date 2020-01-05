@@ -18,11 +18,12 @@
         </encoder>
     </appender>
 
-    <logger name="ch.qos.logback" level="WARN"/>
-    <logger name="de.henningwobken.vpex" level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
         <appender-ref ref="TIME_BASED_FILE"/>
     </root>
+
+    <logger name="ch.qos.logback" level="WARN"/>
+    <logger name="de.henningwobken.vpex" level="DEBUG"/>
 </configuration>

@@ -3,13 +3,21 @@ package de.henningwobken.vpex.main.model
 enum class InternalResource(val filename: String) {
     LOGO("vpex_logo.png"), //
     ICON("vpex_icon.png"), //
+    ICON_32("vpex_icon.ico"), //
     VERSION("version.txt"), //
     DONATE_QR("donate_qr.png"), //
     DONATE_IMG_WHITE("donate_img_white.png"), //
     DONATE_BUTTON("donate_button.gif"), //
-    EDITOR_CSS("editor.css"), //
     BANNER("banner.txt"), //
     COUNCIL_IMG("meeting-2789229_960_720.png"), //
+
+    // CSS
+    EDITOR_CSS("editor.css"), //
+    TEXTAREA_CSS("textarea.css"), //
+    TABPANE_CSS("tabpane.css"), //
+
+    // SCRIPTS
+    RECEIVE_SCRIPT("receive.vbs"), //
 
     // ICONS
     LOCK_CLOSED_ICON("material-icons/lock_closed-24px.svg"), //

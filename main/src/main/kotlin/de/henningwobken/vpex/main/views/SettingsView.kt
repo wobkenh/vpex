@@ -2,7 +2,9 @@ package de.henningwobken.vpex.main.views
 
 import de.henningwobken.vpex.main.controllers.SettingsController
 import de.henningwobken.vpex.main.controllers.UpdateController
+import de.henningwobken.vpex.main.controllers.WindowsContextMenuController
 import de.henningwobken.vpex.main.model.Settings
+import de.henningwobken.vpex.main.model.VpexConstants
 import javafx.application.Platform
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleDoubleProperty
@@ -20,6 +22,7 @@ import java.util.*
 class SettingsView : View("VPEX - Einstellungen") {
     private val updateController: UpdateController by inject()
     private val settingsController: SettingsController by inject()
+    private val windowsContextMenuController: WindowsContextMenuController by inject()
     private val wrapProperty = SimpleBooleanProperty()
     private val schemaBasePathList = mutableListOf<String>()
     private val openerBasePathProperty = SimpleStringProperty()
@@ -40,12 +43,13 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val trustStoreProperty = SimpleStringProperty()
     private val trustStorePasswordProperty = SimpleStringProperty()
     private val insecureProperty = SimpleBooleanProperty()
+    private val contextMenuProperty = SimpleBooleanProperty()
+    private var hadContextMenu: Boolean
 
     init {
         val settings = settingsController.getSettings()
         wrapProperty.set(settings.wrapText)
         schemaBasePathList.addAll(settings.schemaBasePathList)
-        openerBasePathProperty.set(settings.openerBasePath)
         prettyPrintIndentProperty.set(settings.prettyPrintIndent)
         localeProperty.set(settings.locale.toLanguageTag())
         paginationProperty.set(settings.pagination)
@@ -61,6 +65,8 @@ class SettingsView : View("VPEX - Einstellungen") {
         trustStoreProperty.set(settings.trustStore)
         trustStorePasswordProperty.set(settings.trustStorePassword)
         insecureProperty.set(settings.insecure)
+        contextMenuProperty.set(settings.contextMenu)
+        hadContextMenu = settings.contextMenu
     }
 
     override val root = borderpane {
@@ -92,6 +98,10 @@ class SettingsView : View("VPEX - Einstellungen") {
                     }
                     field("Memory Indicator") {
                         checkbox("", memoryIndicatorProperty)
+                    }
+                    field("Windows Context Menu Entry") {
+                        removeWhen(SimpleBooleanProperty(!VpexConstants.isWindows))
+                        checkbox("", contextMenuProperty)
                     }
                 }
                 fieldset("Files") {
@@ -131,19 +141,6 @@ class SettingsView : View("VPEX - Einstellungen") {
                                 }
                             }
                         }
-                    }
-                    field("File Opener Start Location") {
-                        button("Change") {
-                            action {
-                                val directoryChooser = DirectoryChooser()
-                                directoryChooser.title = "File Opener Base Path"
-                                val file = directoryChooser.showDialog(FX.primaryStage)
-                                if (file != null) {
-                                    openerBasePathProperty.set(file.absolutePath)
-                                }
-                            }
-                        }
-                        label(openerBasePathProperty)
                     }
                     field("Lock save operations") {
                         tooltip("When save lock is activated, you will not be able to overwrite the file currently open. (Save as is still possible)")
@@ -188,7 +185,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                             prefWidth = 100.0
                             maxWidth = 100.0
                         }
-                        label("MB")
+                        label("MiB")
                     }
                 }
                 fieldset("Updates") {
@@ -274,7 +271,6 @@ class SettingsView : View("VPEX - Einstellungen") {
 
     private fun saveSettings() {
         val settings = Settings(
-                openerBasePathProperty.get(),
                 schemaBasePathList,
                 wrapProperty.get(),
                 prettyPrintIndentProperty.get(),
@@ -291,9 +287,18 @@ class SettingsView : View("VPEX - Einstellungen") {
                 diskPaginationThresholdProperty.get(),
                 trustStoreProperty.get(),
                 trustStorePasswordProperty.get(),
-                insecureProperty.get()
+                insecureProperty.get(),
+                contextMenuProperty.get()
         )
         settingsController.saveSettings(settings)
+        if (hadContextMenu != settings.contextMenu) {
+            hadContextMenu = settings.contextMenu
+            if (settings.contextMenu) {
+                windowsContextMenuController.addVpexEntry()
+            } else {
+                windowsContextMenuController.removeVpexEntry()
+            }
+        }
         backToMainScreen()
     }
 

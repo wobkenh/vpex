@@ -20,10 +20,12 @@ class Styles : Stylesheet() {
         // classes
         val unchanged by cssclass()
         val changed by cssclass()
+        val warning by cssclass()
         val primaryHeader by cssclass()
         val button by cssclass()
         val card by cssclass()
         val selectable by cssclass()
+        val selectableMultiline by cssclass()
         val councilBackground by cssclass()
 
         // effects
@@ -50,13 +52,19 @@ class Styles : Stylesheet() {
     init {
         unchanged {
             textFill = Color.WHITE
-            backgroundColor += Color.rgb(31, 30, 47)
+            backgroundColor += primaryColor
             fontWeight = FontWeight.BOLD
         }
         changed {
             textFill = Color.WHITE
             backgroundColor += Color.INDIANRED
             fontWeight = FontWeight.BOLD
+        }
+        warning {
+            textFill = Color.WHITE
+            backgroundColor += dangerColor
+            fontWeight = FontWeight.BOLD
+            cursor = Cursor.HAND
         }
         primaryHeader {
             backgroundColor += primaryColor
@@ -84,6 +92,12 @@ class Styles : Stylesheet() {
         selectable {
             backgroundColor += Color.TRANSPARENT
             backgroundInsets += box(0.px)
+        }
+        selectableMultiline {
+            backgroundColor += Color.TRANSPARENT
+            backgroundInsets += box(0.px)
+            focusColor = Color.TRANSPARENT
+            textBoxBorder = Color.TRANSPARENT
         }
         councilBackground {
             backgroundImage += internalResourceController.getAsURI(InternalResource.COUNCIL_IMG)

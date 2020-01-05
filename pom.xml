@@ -15,7 +15,7 @@
     </modules>
 
     <properties>
-        <revision>0.16</revision>
+        <revision>0.18</revision>
         <kotlin.version>1.3.20</kotlin.version>
         <tornadofx.version>1.7.19</tornadofx.version>
         <kotlin.compiler.incremental>true</kotlin.compiler.incremental>
@@ -58,6 +58,31 @@
             <version>5.5.2</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testfx</groupId>
+            <artifactId>testfx-core</artifactId>
+            <version>4.0.16-alpha</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.13.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testfx</groupId>
+            <artifactId>testfx-junit5</artifactId>
+            <version>4.0.16-alpha</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>3.2.4</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
