@@ -14,17 +14,19 @@ class VpexTriggerMonitor : Controller() {
     private lateinit var onFilepathReceived: (path: String) -> Unit
     private val userHome = System.getProperty("user.home")
     private val statusFile = File("$userHome/.vpex/vpex.running")
-    private val receiveFile = File("$userHome/.vpex/vpex.receive")
+    private val vpexHome = File("$userHome/.vpex/")
     private val receiveScriptFile = File("$userHome/.vpex/receive.vbs")
     private var shutdown = false
 
     fun start(onFilepathReceived: (path: String) -> Unit) {
         this.onFilepathReceived = onFilepathReceived
         if (!receiveScriptFile.exists()) {
-            logger.info("Created Receive Script File at ${receiveScriptFile.absolutePath}")
-            val receiveScript = internalResourceController.getAsStrings(InternalResource.RECEIVE_SCRIPT)
-                    .map { line -> line.replace("<VPEX_PATH>", currentJarController.currentPath) }
-            Files.write(receiveScriptFile.toPath(), receiveScript)
+            createReceiveScriptFile()
+        } else {
+            val firstLine = receiveScriptFile.useLines { it.firstOrNull() }
+            if (firstLine == null || !firstLine.contains(currentJarController.currentPath)) {
+                createReceiveScriptFile()
+            }
         }
 
         val otherProcessCount = if (!statusFile.exists()) {
@@ -41,16 +43,28 @@ class VpexTriggerMonitor : Controller() {
                 if (shutdown) {
                     break
                 }
-                if (receiveFile.exists()) {
-                    val path = Files.readAllLines(receiveFile.toPath()).first().trim('\"', '\r', '\n', ' ')
-                    Files.delete(receiveFile.toPath())
-                    logger.info("Triggered by receive file. Opening path '$path'")
-                    onFilepathReceived(path)
-                }
+                vpexHome.listFiles()
+                        ?.filter { it.name.startsWith("vpex.receive") }
+                        ?.forEach { receiveFile ->
+                            if (receiveFile.exists() && receiveFile.isFile) {
+                                val path = Files.readAllLines(receiveFile.toPath()).first().trim('\"', '\r', '\n', ' ')
+                                Files.delete(receiveFile.toPath())
+                                logger.info("Triggered by receive file. Opening path '$path'")
+                                onFilepathReceived(path)
+                            }
+                        }
+
                 Thread.sleep(200)
             }
             logger.info("VpexTriggerMonitor shut down")
         }.start()
+    }
+
+    private fun createReceiveScriptFile() {
+        logger.info("Created Receive Script File at ${receiveScriptFile.absolutePath}")
+        val receiveScript = internalResourceController.getAsStrings(InternalResource.RECEIVE_SCRIPT)
+                .map { line -> line.replace("<VPEX_PATH>", currentJarController.currentPath) }
+        Files.write(receiveScriptFile.toPath(), receiveScript)
     }
 
     fun shutdown() {
