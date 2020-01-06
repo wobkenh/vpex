@@ -37,6 +37,7 @@ class MemoryMonitor : Controller() {
                 }
                 Thread.sleep(3000)
             }
+            logger.info { "Stopped memory monitor thread" }
         }
         thread.start()
         isRunning = true

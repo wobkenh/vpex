@@ -88,7 +88,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         updateSettings()
 
         FX.primaryStage.setOnShowing {
-            memoryMonitor.start()
+            // Memory Monitor will be started in updateSettings
             fileWatcher.start()
             vpexTriggerMonitor.start {
                 Platform.runLater {
