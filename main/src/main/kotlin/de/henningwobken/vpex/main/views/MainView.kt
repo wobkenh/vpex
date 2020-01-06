@@ -5,9 +5,14 @@ import de.henningwobken.vpex.main.model.InternalResource
 import javafx.application.Platform
 import javafx.beans.property.SimpleDoubleProperty
 import javafx.beans.property.SimpleStringProperty
+import javafx.collections.ListChangeListener
+import javafx.event.EventHandler
 import javafx.scene.control.ButtonType
+import javafx.scene.control.Label
 import javafx.scene.control.Tab
 import javafx.scene.control.TabPane
+import javafx.scene.input.ClipboardContent
+import javafx.scene.input.DragEvent
 import javafx.scene.input.KeyCombination
 import javafx.scene.input.TransferMode
 import javafx.scene.layout.BorderPane
@@ -21,6 +26,7 @@ import java.awt.Desktop
 import java.awt.Robot
 import java.io.File
 import java.text.NumberFormat
+import java.util.concurrent.atomic.AtomicLong
 
 
 class MainView : View("VPEX: View, parse and edit large XML Files") {
@@ -40,6 +46,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val statusTextProperty = SimpleStringProperty("")
     private val downloadProgressProperty = SimpleDoubleProperty(-1.0)
     private var newCounter = 0
+
+    // Draggable Tabs
+    private var currentDraggingTab: Tab? = null
+    private val draggingID = "DraggingTabPaneSupport-" + idGenerator.incrementAndGet()
 
     private lateinit var tabPane: TabPane
 
@@ -204,6 +214,29 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 }
             })
             tabClosingPolicy = TabPane.TabClosingPolicy.ALL_TABS
+            // if we drag onto a tab pane (but not onto the tab graphic), add the tab to the end of the list of tabs:
+            onDragOver = EventHandler { e: DragEvent ->
+                if (draggingID == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.tabPane !== tabPane) {
+                    e.acceptTransferModes(TransferMode.MOVE)
+                }
+            }
+            onDragDropped = EventHandler { e: DragEvent ->
+                if (draggingID == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.tabPane !== tabPane) {
+                    currentDraggingTab!!.tabPane.tabs.remove(currentDraggingTab)
+                    tabPane.tabs.add(currentDraggingTab)
+                    currentDraggingTab!!.tabPane.selectionModel.select(currentDraggingTab)
+                }
+            }
+            tabs.addListener { c: ListChangeListener.Change<out Tab?> ->
+                while (c.next()) {
+                    if (c.wasAdded()) {
+                        c.addedSubList.forEach { tab: Tab? -> addDragHandlers(tab) }
+                    }
+                    if (c.wasRemoved()) {
+                        c.removed.forEach { tab: Tab? -> removeDragHandlers(tab) }
+                    }
+                }
+            }
         }
         bottom = statusBarView.root
 
@@ -384,6 +417,59 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private fun closeTab(tab: Tab) {
         tabController.closeTab(tab)
         tabPane.tabs.remove(tab)
+    }
+
+
+    // Draggable Tabs
+
+    private fun addDragHandlers(tab: Tab?) {
+        // move text to label graphic:
+        if (tab != null) {
+            if (tab.text != null && tab.text.isNotEmpty()) {
+                val label = Label(tab.text, tab.graphic)
+                label.style = "-fx-text-fill: #fafafa"
+                tab.text = null
+                tab.graphic = label
+            }
+            val graphic = tab.graphic
+            graphic.onDragDetected = EventHandler {
+                val dragboard = graphic.startDragAndDrop(TransferMode.MOVE)
+                val content = ClipboardContent()
+                // dragboard must have some content, but we need it to be a Tab, which isn't supported
+                // So we store it in a local variable and just put arbitrary content in the dragbaord:
+                content.putString(draggingID)
+                dragboard.setContent(content)
+                dragboard.dragView = graphic.snapshot(null, null)
+                currentDraggingTab = tab
+            }
+            graphic.onDragOver = EventHandler { e: DragEvent ->
+                if (draggingID == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.graphic !== graphic) {
+                    e.acceptTransferModes(TransferMode.MOVE)
+                }
+            }
+            graphic.onDragDropped = EventHandler { e: DragEvent ->
+                if (draggingID == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.graphic !== graphic) {
+                    val index = tab.tabPane.tabs.indexOf(tab)
+                    currentDraggingTab!!.tabPane.tabs.remove(currentDraggingTab)
+                    tab.tabPane.tabs.add(index, currentDraggingTab)
+                    currentDraggingTab!!.tabPane.selectionModel.select(currentDraggingTab)
+                }
+            }
+            graphic.onDragDone = EventHandler { e: DragEvent? -> currentDraggingTab = null }
+        }
+    }
+
+    private fun removeDragHandlers(tab: Tab?) {
+        if (tab != null) {
+            tab.graphic.onDragDetected = null
+            tab.graphic.onDragOver = null
+            tab.graphic.onDragDropped = null
+            tab.graphic.onDragDone = null
+        }
+    }
+
+    companion object {
+        private val idGenerator = AtomicLong()
     }
 
 }
