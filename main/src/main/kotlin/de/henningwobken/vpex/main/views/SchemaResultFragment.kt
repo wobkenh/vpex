@@ -215,6 +215,14 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
         }
     }
 
+    override fun onUndock() {
+        super.onUndock()
+        if (this.workingProperty.get() && vpexExecutor.isRunning.get()) {
+            logger.debug { "Schema Result Window was closed before finishing. Cancelling current Task." }
+            vpexExecutor.cancel()
+        }
+    }
+
     private fun displayPage(pageNumber: Int) {
         displayedExceptions.clear()
         val fromIndex = pageSize * (pageNumber - 1)
