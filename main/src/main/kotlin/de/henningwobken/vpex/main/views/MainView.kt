@@ -26,7 +26,6 @@ import java.awt.Desktop
 import java.awt.Robot
 import java.io.File
 import java.text.NumberFormat
-import java.util.concurrent.atomic.AtomicLong
 
 
 class MainView : View("VPEX: View, parse and edit large XML Files") {
@@ -49,7 +48,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     // Draggable Tabs
     private var currentDraggingTab: Tab? = null
-    private val draggingID = "DraggingTabPaneSupport-" + idGenerator.incrementAndGet()
+    private val draggingId = "VPEX-MAINVIEW"
 
     private lateinit var tabPane: TabPane
 
@@ -216,12 +215,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             tabClosingPolicy = TabPane.TabClosingPolicy.ALL_TABS
             // if we drag onto a tab pane (but not onto the tab graphic), add the tab to the end of the list of tabs:
             onDragOver = EventHandler { e: DragEvent ->
-                if (draggingID == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.tabPane !== tabPane) {
+                if (draggingId == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.tabPane !== tabPane) {
                     e.acceptTransferModes(TransferMode.MOVE)
                 }
             }
             onDragDropped = EventHandler { e: DragEvent ->
-                if (draggingID == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.tabPane !== tabPane) {
+                if (draggingId == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.tabPane !== tabPane) {
                     currentDraggingTab!!.tabPane.tabs.remove(currentDraggingTab)
                     tabPane.tabs.add(currentDraggingTab)
                     currentDraggingTab!!.tabPane.selectionModel.select(currentDraggingTab)
@@ -437,18 +436,18 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 val content = ClipboardContent()
                 // dragboard must have some content, but we need it to be a Tab, which isn't supported
                 // So we store it in a local variable and just put arbitrary content in the dragbaord:
-                content.putString(draggingID)
+                content.putString(draggingId)
                 dragboard.setContent(content)
                 dragboard.dragView = graphic.snapshot(null, null)
                 currentDraggingTab = tab
             }
             graphic.onDragOver = EventHandler { e: DragEvent ->
-                if (draggingID == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.graphic !== graphic) {
+                if (draggingId == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.graphic !== graphic) {
                     e.acceptTransferModes(TransferMode.MOVE)
                 }
             }
             graphic.onDragDropped = EventHandler { e: DragEvent ->
-                if (draggingID == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.graphic !== graphic) {
+                if (draggingId == e.dragboard.string && currentDraggingTab != null && currentDraggingTab!!.graphic !== graphic) {
                     val index = tab.tabPane.tabs.indexOf(tab)
                     currentDraggingTab!!.tabPane.tabs.remove(currentDraggingTab)
                     tab.tabPane.tabs.add(index, currentDraggingTab)
@@ -466,10 +465,6 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             tab.graphic.onDragDropped = null
             tab.graphic.onDragDone = null
         }
-    }
-
-    companion object {
-        private val idGenerator = AtomicLong()
     }
 
 }
