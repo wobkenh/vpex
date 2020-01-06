@@ -3,6 +3,7 @@ package de.henningwobken.vpex.main.views
 import de.henningwobken.vpex.main.Styles
 import de.henningwobken.vpex.main.controllers.InternalResourceController
 import de.henningwobken.vpex.main.controllers.SettingsController
+import de.henningwobken.vpex.main.controllers.StringUtils
 import de.henningwobken.vpex.main.controllers.VpexExecutor
 import de.henningwobken.vpex.main.model.InternalResource
 import de.henningwobken.vpex.main.xml.DiffProgressInputStream
@@ -47,6 +48,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     private val settingsController by inject<SettingsController>()
     private val internalResourceController by inject<InternalResourceController>()
     private val vpexExecutor by inject<VpexExecutor>()
+    private val stringUtils by inject<StringUtils>()
     lateinit var gotoLineColumn: (line: Long, column: Long, file: File?) -> Unit
 
     private enum class ValidationSeverity {
@@ -400,7 +402,13 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                     }
                     textarea(exceptionWrapper.message) {
                         addClass(Styles.selectableMultiline)
-                        prefRowCount = 1
+                        val prefRows = stringUtils.countLinesInString(exceptionWrapper.message.get())
+                        prefRowCount = prefRows
+                        exceptionWrapper.message.onChange {
+                            val updatedPrefRows = stringUtils.countLinesInString(exceptionWrapper.message.get())
+                            prefRowCount = updatedPrefRows
+                            requestLayout()
+                        }
                     }
                 }
             }
@@ -450,5 +458,6 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
             "$prefix $it"
         }
     }
+
 
 }

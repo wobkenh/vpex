@@ -92,6 +92,9 @@ class ResourceResolver(private val basePathList: List<String>) : LSResourceResol
         Platform.runLater {
             val resultFragment = find<SchemaChooserFragment>()
             val stage = resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
+            if (stage != null) {
+                stage.toFront()
+            }
             resultFragment.chooseFile(files, schemaDescriptor) {
                 file = it
                 stage?.close()
