@@ -121,7 +121,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                     }
                 }
                 fieldset("Files") {
-                    field("Schema Root Location") {
+                    field("Schema Root Locations") {
                         vbox {
                             val basePathBox = vbox {}
                             val addBasePathChild = { basePath: String ->
