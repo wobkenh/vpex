@@ -25,6 +25,12 @@
             <artifactId>FranzXaver</artifactId>
             <version>0.1</version>
         </dependency>
+        <!-- Create/Edit/Read Ink Files -->
+        <dependency>
+            <groupId>com.github.vatbub</groupId>
+            <artifactId>mslinks</artifactId>
+            <version>1.0.5</version>
+        </dependency>
         <!-- TODO: Regex CharSequence? Remove if not needed -->
         <!--        <dependency>-->
         <!--            <groupId>com.github.fge</groupId>-->

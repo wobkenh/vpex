@@ -21,7 +21,6 @@ class SettingsController : Controller() {
     private val openerBasePathFile = File(VpexConstants.vpexHome + "/basepath")
     private var settings: Settings
     private var openerBasePath: String = "./"
-    private val contextMenuDefault = VpexConstants.isWindows
     val settingsProperty = SimpleObjectProperty<Settings>()
 
 
@@ -105,6 +104,7 @@ class SettingsController : Controller() {
         properties.setProperty("insecure", settings.insecure.toString())
         properties.setProperty("contextMenu", settings.contextMenu.toString())
         properties.setProperty("syntaxHighlighting", settings.syntaxHighlighting.toString())
+        properties.setProperty("startMenuEntry", settings.startMenu.toString())
         properties.store(configFile.outputStream(), "")
         applySettings(settings)
     }
@@ -139,8 +139,9 @@ class SettingsController : Controller() {
                         properties.getProperty("trustStore", ""),
                         properties.getProperty("trustStorePassword", ""),
                         properties.getProperty("insecure", "false") == "true",
-                        properties.getProperty("contextMenu", contextMenuDefault.toString()) == "true",
-                        properties.getProperty("syntaxHighlighting", "false") == "true"
+                        properties.getProperty("contextMenu", VpexConstants.isWindows.toString()) == "true",
+                        properties.getProperty("syntaxHighlighting", "false") == "true",
+                        properties.getProperty("startMenuEntry", VpexConstants.isWindows.toString()) == "true"
 
                 )
             } catch (e: Exception) {
@@ -203,8 +204,9 @@ class SettingsController : Controller() {
                     trustStore = "",
                     trustStorePassword = "",
                     insecure = false,
-                    contextMenu = contextMenuDefault,
-                    syntaxHighlighting = false
+                    contextMenu = VpexConstants.isWindows,
+                    syntaxHighlighting = false,
+                    startMenu = VpexConstants.isWindows
             )
 
     private fun validateSettings(settings: Settings) {

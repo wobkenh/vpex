@@ -40,6 +40,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     private val statusBarView: StatusBarView by inject()
     private val memoryMonitor: MemoryMonitor by inject()
     private val fileWatcher: FileWatcher by inject()
+    private val windowsStartMenuController: WindowsStartMenuController by inject()
 
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
     private val statusTextProperty = SimpleStringProperty("")
@@ -54,10 +55,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
 
     init {
+        internalResourceController.getAsStrings(InternalResource.BANNER).forEach(::println)
         if (settingsController.getSettings().contextMenu) {
             windowsContextMenuController.addVpexEntry()
         }
-        internalResourceController.getAsStrings(InternalResource.BANNER).forEach(::println)
+        if (settingsController.getSettings().startMenu) {
+            windowsStartMenuController.addVpexEntry()
+        }
         if (settingsController.getSettings().autoUpdate) {
             statusTextProperty.set("Checking for updates")
             Thread {

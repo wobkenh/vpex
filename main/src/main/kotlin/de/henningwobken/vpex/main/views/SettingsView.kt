@@ -3,6 +3,7 @@ package de.henningwobken.vpex.main.views
 import de.henningwobken.vpex.main.controllers.SettingsController
 import de.henningwobken.vpex.main.controllers.UpdateController
 import de.henningwobken.vpex.main.controllers.WindowsContextMenuController
+import de.henningwobken.vpex.main.controllers.WindowsStartMenuController
 import de.henningwobken.vpex.main.model.Settings
 import de.henningwobken.vpex.main.model.VpexConstants
 import javafx.application.Platform
@@ -23,6 +24,8 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val updateController: UpdateController by inject()
     private val settingsController: SettingsController by inject()
     private val windowsContextMenuController: WindowsContextMenuController by inject()
+    private val windowsStartMenuController: WindowsStartMenuController by inject()
+
     private val wrapProperty = SimpleBooleanProperty()
     private val schemaBasePathList = mutableListOf<String>()
     private val openerBasePathProperty = SimpleStringProperty()
@@ -45,7 +48,9 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val insecureProperty = SimpleBooleanProperty()
     private val contextMenuProperty = SimpleBooleanProperty()
     private val syntaxHighlightingProperty = SimpleBooleanProperty()
+    private val startMenuProperty = SimpleBooleanProperty()
     private var hadContextMenu: Boolean
+    private var hadStartMenu: Boolean
 
     init {
         val settings = settingsController.getSettings()
@@ -68,7 +73,9 @@ class SettingsView : View("VPEX - Einstellungen") {
         insecureProperty.set(settings.insecure)
         contextMenuProperty.set(settings.contextMenu)
         syntaxHighlightingProperty.set(settings.syntaxHighlighting)
+        startMenuProperty.set(settings.startMenu)
         hadContextMenu = settings.contextMenu
+        hadStartMenu = settings.startMenu
     }
 
     override val root = borderpane {
@@ -107,6 +114,10 @@ class SettingsView : View("VPEX - Einstellungen") {
                     field("Windows Context Menu Entry") {
                         removeWhen(SimpleBooleanProperty(!VpexConstants.isWindows))
                         checkbox("", contextMenuProperty)
+                    }
+                    field("Windows Start Menu Entry") {
+                        removeWhen(SimpleBooleanProperty(!VpexConstants.isWindows))
+                        checkbox("", startMenuProperty)
                     }
                 }
                 fieldset("Files") {
@@ -294,7 +305,8 @@ class SettingsView : View("VPEX - Einstellungen") {
                 trustStorePasswordProperty.get(),
                 insecureProperty.get(),
                 contextMenuProperty.get(),
-                syntaxHighlightingProperty.get()
+                syntaxHighlightingProperty.get(),
+                startMenuProperty.get()
         )
         settingsController.saveSettings(settings)
         if (hadContextMenu != settings.contextMenu) {
@@ -303,6 +315,14 @@ class SettingsView : View("VPEX - Einstellungen") {
                 windowsContextMenuController.addVpexEntry()
             } else {
                 windowsContextMenuController.removeVpexEntry()
+            }
+        }
+        if (hadStartMenu != settings.startMenu) {
+            hadStartMenu = settings.startMenu
+            if (settings.startMenu) {
+                windowsStartMenuController.addVpexEntry()
+            } else {
+                windowsStartMenuController.removeVpexEntry()
             }
         }
         backToMainScreen()
