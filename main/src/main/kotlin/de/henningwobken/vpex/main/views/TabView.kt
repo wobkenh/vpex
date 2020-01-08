@@ -46,6 +46,7 @@ class TabView : Fragment("File") {
     private val vpexExecutor: VpexExecutor by inject()
     private val fileCalculationController: FileCalculationController by inject()
     private val fileWatcher: FileWatcher by inject()
+    private val xmlHighlightController: XmlHighlightController by inject()
 
     val isDirty: BooleanProperty = SimpleBooleanProperty(false)
     val saveLockProperty = SimpleBooleanProperty(false)
@@ -1317,6 +1318,9 @@ class TabView : Fragment("File") {
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
                 }
             }
+            if (settingsController.getSettings().syntaxHighlighting) {
+                codeArea.setStyleSpans(0, xmlHighlightController.computeHighlighting(codeArea.text))
+            }
             if (this.hasFindProperty.get()) {
                 // The edit has invalidated the search result => Remove Highlight
                 if (this.codeArea.text.length >= this.lastFindStart &&
@@ -1366,7 +1370,14 @@ class TabView : Fragment("File") {
 
     private fun removeFindHighlighting() {
         if (codeArea.length > 0) {
-            this.codeArea.clearStyle(0, codeArea.length - 1)
+            if (settingsController.getSettings().syntaxHighlighting) {
+                codeArea.setStyleSpans(0, xmlHighlightController.computeHighlighting(codeArea.text))
+            } else {
+                this.codeArea.clearStyle(0, codeArea.length - 1)
+            }
+            if (allFinds.isNotEmpty()) {
+                highlightFinds(allFinds)
+            }
         }
         this.hasFindProperty.set(false)
         this.lastFindStart = 0

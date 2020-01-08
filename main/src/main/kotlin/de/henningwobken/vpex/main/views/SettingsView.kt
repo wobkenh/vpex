@@ -44,6 +44,7 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val trustStorePasswordProperty = SimpleStringProperty()
     private val insecureProperty = SimpleBooleanProperty()
     private val contextMenuProperty = SimpleBooleanProperty()
+    private val syntaxHighlightingProperty = SimpleBooleanProperty()
     private var hadContextMenu: Boolean
 
     init {
@@ -66,6 +67,7 @@ class SettingsView : View("VPEX - Einstellungen") {
         trustStorePasswordProperty.set(settings.trustStorePassword)
         insecureProperty.set(settings.insecure)
         contextMenuProperty.set(settings.contextMenu)
+        syntaxHighlightingProperty.set(settings.syntaxHighlighting)
         hadContextMenu = settings.contextMenu
     }
 
@@ -75,6 +77,9 @@ class SettingsView : View("VPEX - Einstellungen") {
                 paddingAll = 50
 
                 fieldset("Appearance") {
+                    field("Syntax Highlighting") {
+                        checkbox("", syntaxHighlightingProperty)
+                    }
                     field("Wrap text") {
                         checkbox("", wrapProperty)
                     }
@@ -288,7 +293,8 @@ class SettingsView : View("VPEX - Einstellungen") {
                 trustStoreProperty.get(),
                 trustStorePasswordProperty.get(),
                 insecureProperty.get(),
-                contextMenuProperty.get()
+                contextMenuProperty.get(),
+                syntaxHighlightingProperty.get()
         )
         settingsController.saveSettings(settings)
         if (hadContextMenu != settings.contextMenu) {

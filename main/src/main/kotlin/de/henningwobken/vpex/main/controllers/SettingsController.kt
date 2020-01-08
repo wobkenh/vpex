@@ -104,6 +104,7 @@ class SettingsController : Controller() {
         properties.setProperty("trustStorePassword", settings.trustStorePassword)
         properties.setProperty("insecure", settings.insecure.toString())
         properties.setProperty("contextMenu", settings.contextMenu.toString())
+        properties.setProperty("syntaxHighlighting", settings.syntaxHighlighting.toString())
         properties.store(configFile.outputStream(), "")
         applySettings(settings)
     }
@@ -126,7 +127,7 @@ class SettingsController : Controller() {
                         properties.getProperty("prettyPrintIndent", "4").toInt(),
                         Locale.forLanguageTag(properties.getProperty("locale", "en")),
                         properties.getProperty("pagination", "true") == "true",
-                        properties.getProperty("pageSize", "1000000").toInt(),
+                        properties.getProperty("pageSize", "500000").toInt(),
                         properties.getProperty("paginationThreshold", "30000000").toInt(),
                         properties.getProperty("autoUpdate", "false") == "true",
                         properties.getProperty("proxyHost", ""),
@@ -138,7 +139,8 @@ class SettingsController : Controller() {
                         properties.getProperty("trustStore", ""),
                         properties.getProperty("trustStorePassword", ""),
                         properties.getProperty("insecure", "false") == "true",
-                        properties.getProperty("contextMenu", contextMenuDefault.toString()) == "true"
+                        properties.getProperty("contextMenu", contextMenuDefault.toString()) == "true",
+                        properties.getProperty("syntaxHighlighting", "false") == "true"
 
                 )
             } catch (e: Exception) {
@@ -189,7 +191,7 @@ class SettingsController : Controller() {
                     prettyPrintIndent = 4,
                     locale = Locale.ENGLISH,
                     pagination = true,
-                    pageSize = 1000000,
+                    pageSize = 500000,
                     paginationThreshold = 30000000,
                     autoUpdate = true,
                     proxyHost = "",
@@ -201,7 +203,8 @@ class SettingsController : Controller() {
                     trustStore = "",
                     trustStorePassword = "",
                     insecure = false,
-                    contextMenu = contextMenuDefault
+                    contextMenu = contextMenuDefault,
+                    syntaxHighlighting = false
             )
 
     private fun validateSettings(settings: Settings) {

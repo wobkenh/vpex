@@ -141,6 +141,43 @@ class StatusBarView : View() {
                 }
 
                 /*
+                     Character Stats
+                 */
+
+                hbox(10) {
+                    hbox(5) {
+                        removeWhen { selectionLength.eq(0) }
+                        alignment = Pos.CENTER
+                        label("Selected:")
+                        label(selectionLength.stringBinding {
+                            numberFormat.format(it)
+                        })
+                        label("chars")
+                    }
+                    hbox(5) {
+                        alignment = Pos.CENTER
+                        label("Position:")
+                        label(cursorLine.stringBinding(cursorColumn) {
+                            "${numberFormat.format(cursorLine.get())}:${numberFormat.format(cursorColumn.get())}"
+                        })
+                    }
+                    hbox(5) {
+                        alignment = Pos.CENTER
+                        label("Lines:")
+                        label(lineCount.stringBinding {
+                            numberFormat.format(it)
+                        })
+                    }
+                    hbox(5) {
+                        alignment = Pos.CENTER
+                        label("Chars:")
+                        label(charCountProperty.stringBinding {
+                            numberFormat.format(it)
+                        })
+                    }
+                }
+
+                /*
                     Pagination
                 */
 
@@ -181,43 +218,6 @@ class StatusBarView : View() {
                 }
 
                 /*
-                     Character Stats
-                 */
-
-                hbox(10) {
-                    hbox(5) {
-                        removeWhen { selectionLength.eq(0) }
-                        alignment = Pos.CENTER
-                        label("Selected:")
-                        label(selectionLength.stringBinding {
-                            numberFormat.format(it)
-                        })
-                        label("chars")
-                    }
-                    hbox(5) {
-                        alignment = Pos.CENTER
-                        label("Position:")
-                        label(cursorLine.stringBinding(cursorColumn) {
-                            "${numberFormat.format(cursorLine.get())}:${numberFormat.format(cursorColumn.get())}"
-                        })
-                    }
-                    hbox(5) {
-                        alignment = Pos.CENTER
-                        label("Lines:")
-                        label(lineCount.stringBinding {
-                            numberFormat.format(it)
-                        })
-                    }
-                    hbox(5) {
-                        alignment = Pos.CENTER
-                        label("Chars:")
-                        label(charCountProperty.stringBinding {
-                            numberFormat.format(it)
-                        })
-                    }
-                }
-
-                /*
                      Memory Label
                  */
 
@@ -236,6 +236,8 @@ class StatusBarView : View() {
                     paddingHorizontal = 5
                     isFillHeight = true
                     maxHeight = Double.MAX_VALUE
+                    prefWidth = 145.0
+                    alignment = Pos.CENTER
                     removeWhen(showMonitorThread.not())
                     memoryLabel = this
                 }

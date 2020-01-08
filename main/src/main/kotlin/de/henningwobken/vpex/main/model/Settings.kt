@@ -22,7 +22,8 @@ class Settings(
         val trustStore: String,
         val trustStorePassword: String,
         val insecure: Boolean,
-        val contextMenu: Boolean
+        val contextMenu: Boolean,
+        val syntaxHighlighting: Boolean
 ) {
     fun hasProxy(): Boolean = proxyHost.isNotBlank()
 
