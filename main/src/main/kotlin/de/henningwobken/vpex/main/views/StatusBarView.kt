@@ -41,7 +41,12 @@ class StatusBarView : View() {
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
     private val saveLockProperty = SimpleBooleanProperty(false)
     private val statusTextProperty = SimpleStringProperty("")
+    // We cant set the value of a bound property
+    // so we need to save the tab view's status text property for changes from within this class
+    private lateinit var tabViewStatusTextProperty: SimpleStringProperty
     private val fileProgressProperty = SimpleDoubleProperty(-1.0)
+    // same as status text property
+    private lateinit var tabViewFileProgressProperty: SimpleDoubleProperty
     private val displayMode = SimpleObjectProperty<DisplayMode>(DisplayMode.PLAIN)
     private var lineCount = SimpleIntegerProperty(0)
     private val charCountProperty = SimpleIntegerProperty(0)
@@ -110,8 +115,8 @@ class StatusBarView : View() {
                     removeWhen { vpexExecutor.isRunning.not() }
                 }.action {
                     vpexExecutor.cancel()
-                    statusTextProperty.set("")
-                    fileProgressProperty.set(-1.0)
+                    tabViewStatusTextProperty.set("")
+                    tabViewFileProgressProperty.set(-1.0)
                 }
                 progressbar(downloadProgressProperty) {
                     removeWhen(downloadProgressProperty.lessThan(0))
@@ -262,10 +267,12 @@ class StatusBarView : View() {
         isDirty.bind(tabView.isDirty)
         saveLockProperty.bind(tabView.saveLockProperty)
         fileProgressProperty.bind(tabView.fileProgressProperty)
+        tabViewFileProgressProperty = tabView.fileProgressProperty
         displayMode.bind(tabView.displayMode)
         lineCount.bind(tabView.lineCount)
         charCountProperty.bind(tabView.charCountProperty)
         statusTextProperty.bind(tabView.statusTextProperty)
+        tabViewStatusTextProperty = tabView.statusTextProperty
         moveToPage.set { page ->
             tabView.moveToPage(page)
         }

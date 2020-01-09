@@ -1637,15 +1637,25 @@ class TabView : Fragment("File") {
                 val pageSize = this.settingsController.getSettings().pageSize
                 val charOffset = pageSize.toLong() * (this.page.get() - 1) + codeArea.caretPosition + skipLastFindOffset
                 vpexExecutor.execute {
-                    val find = searchAndReplaceController.findNextFromDisk(file, searchText, charOffset, pageSize, pageStartingByteIndexes,
-                            searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase) { progress ->
-                        Platform.runLater {
-                            fileProgressProperty.set(progress)
+                    try {
+                        val find = searchAndReplaceController.findNextFromDisk(file, searchText, charOffset, pageSize, pageStartingByteIndexes,
+                                searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase) { progress ->
+                            if (Thread.currentThread().isInterrupted) {
+                                throw InterruptedException("Cancelled")
+                            }
+                            Platform.runLater {
+                                fileProgressProperty.set(progress)
+                            }
                         }
-                    }
-                    Platform.runLater {
-                        fileProgressProperty.set(-1.0)
-                        afterSearchResult(find)
+                        Platform.runLater {
+                            fileProgressProperty.set(-1.0)
+                            afterSearchResult(find)
+                        }
+                    } catch (e: InterruptedException) {
+                        logger.info { "Cancelling Syntax Validation" }
+                        Platform.runLater {
+                            fileProgressProperty.set(-1.0)
+                        }
                     }
                 }
             } else {

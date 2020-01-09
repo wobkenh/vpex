@@ -56,9 +56,7 @@ class SearchAndReplaceController : Controller() {
      * @param searchText text to search for or regex describing it
      * @param ignoreCase whether to do a case sensitive or case insensitive search
      * @return Find object with start and end index of find.
-     *         The start and end index relate to the bytes of the file that was given.
-     *         Be careful:
-     *         Characters can be multiple bytes (e.g. umlauts in UTF-8), so byte index != character index
+     *         The start and end index relate to the character index in the file that was given.
      */
     fun findNextFromDisk(file: File,
                          searchText: String,
@@ -78,7 +76,7 @@ class SearchAndReplaceController : Controller() {
         // TODO: Unified Service Method?
         val totalLength = file.length().toDouble()
         val accessFile = RandomAccessFile(file, "r")
-        var tmpFind: Find? = null
+        var tmpFind: Find?
         var pageIndex = (charOffset / pageSize).toInt()
         val bufferSize = getBufferSize(pageStartingByteIndexes)
         val buffer = ByteArray(bufferSize)
