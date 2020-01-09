@@ -1412,8 +1412,7 @@ class TabView : Fragment("File") {
                 // therefore, we have to go page by page
                 // this means that page breaks might hide/split search results
                 // to counter this, a pageOverlap is introduced which will cause the searches to overlap
-                // TODO: Reimplement page overlap
-                // TODO: Service Method
+                // TODO: Service Method ==> See SearchAndReplaceController => findNextFromDisk
                 // TODO: Reimplement the start-search-from-current-page mechanism
                 val accessFile = RandomAccessFile(file, "r")
                 var totalBytesRead = 0

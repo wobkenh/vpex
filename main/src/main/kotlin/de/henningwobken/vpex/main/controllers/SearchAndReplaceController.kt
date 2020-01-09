@@ -74,12 +74,15 @@ class SearchAndReplaceController : Controller() {
         // to counter this, a pageOverlap is introduced which will cause the searches to overlap
         // TODO: SearchDirection
         // TODO: Unified Service Method?
-        val totalLength = file.length().toDouble()
+        val totalLength = file.length()
         val accessFile = RandomAccessFile(file, "r")
         var tmpFind: Find?
         var pageIndex = (charOffset / pageSize).toInt()
         // Makes pages overlap by increasing the buffer size so that finds between pages are not lost
         val pageOverlap = max(100, searchText.length)
+        // we dont want to recreate the buffer on every iteration, so we create it once with a size that fits all pages
+        // note that every page might need a buffer of different size since umlauts and other unicode characters
+        // can take more than one byte, so byte != char count and pagesSize is a character count, not byte count
         val bufferSize = getBufferSize(pageStartingByteIndexes) + pageOverlap
         val buffer = ByteArray(bufferSize)
         while (true) {
@@ -88,14 +91,24 @@ class SearchAndReplaceController : Controller() {
             }
             val startByteIndex = pageStartingByteIndexes[pageIndex]
             if (progressCallback != null) {
-                progressCallback(startByteIndex / totalLength)
+                progressCallback(startByteIndex / totalLength.toDouble())
             }
             accessFile.seek(startByteIndex)
-            val read = accessFile.read(buffer)
+
+            // Calc how many bytes to read
+            val endByteIndex = if (pageIndex + 1 >= pageStartingByteIndexes.size) {
+                totalLength
+            } else {
+                pageStartingByteIndexes[pageIndex + 1]
+            }
+            val pageByteSize = (endByteIndex - startByteIndex).toInt()
+
+            val read = accessFile.read(buffer, 0, pageByteSize + pageOverlap)
             if (read == -1) {
                 break
             }
             val string = String(buffer, 0, read)
+
             val pageCharOffset = pageIndex * pageSize.toLong()
             val offset = if (pageCharOffset < charOffset) {
                 (charOffset % pageSize).toInt()
