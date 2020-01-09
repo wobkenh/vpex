@@ -6,6 +6,7 @@ import de.henningwobken.vpex.main.model.SearchTextMode
 import tornadofx.*
 import java.io.File
 import java.io.RandomAccessFile
+import java.lang.Integer.max
 import java.util.regex.Pattern
 
 class SearchAndReplaceController : Controller() {
@@ -72,13 +73,14 @@ class SearchAndReplaceController : Controller() {
         // this means that page breaks might hide/split search results
         // to counter this, a pageOverlap is introduced which will cause the searches to overlap
         // TODO: SearchDirection
-        // TODO: Reimplement page overlap
         // TODO: Unified Service Method?
         val totalLength = file.length().toDouble()
         val accessFile = RandomAccessFile(file, "r")
         var tmpFind: Find?
         var pageIndex = (charOffset / pageSize).toInt()
-        val bufferSize = getBufferSize(pageStartingByteIndexes)
+        // Makes pages overlap by increasing the buffer size so that finds between pages are not lost
+        val pageOverlap = max(100, searchText.length)
+        val bufferSize = getBufferSize(pageStartingByteIndexes) + pageOverlap
         val buffer = ByteArray(bufferSize)
         while (true) {
             if (pageIndex >= pageStartingByteIndexes.size) {
@@ -108,6 +110,7 @@ class SearchAndReplaceController : Controller() {
     }
 
     private fun getBufferSize(pageStartingByteIndexes: List<Long>): Int {
+        // TODO: Fails if only one page. Does not regard last page.
         var bufferSize = 0
         var previousByteIndex = 0L
         for (startingByteIndex in pageStartingByteIndexes) {

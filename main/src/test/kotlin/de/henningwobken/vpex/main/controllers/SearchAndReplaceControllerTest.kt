@@ -161,6 +161,7 @@ class SearchAndReplaceControllerTest {
     // region findNext Disk Pagination
 
     private val testFile = loadResource("umlauts.xml")
+    private val testFilePageBreaks = loadResource("page_breaks")
 
     @Test
     fun `find next down normal with umlauts`() {
@@ -185,6 +186,23 @@ class SearchAndReplaceControllerTest {
 
         val noFind = searchAndReplaceController.findNextFromDisk(testFile, "search", 141, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
         assertNull(noFind)
+    }
+
+    @Test
+    fun `find next disk pagination search term split by page`() {
+        val pageSize = 10
+        val pageByteIndexes = fileCalculationController.calcStartingByteIndexesAndLineCounts(testFilePageBreaks, pageSize) {}.pageStartingByteIndexes
+
+        val finds = listOf(0L, 2L).map {
+            searchAndReplaceController.findNextFromDisk(testFilePageBreaks, "seeeeeaaaaaarch", it, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        }
+
+        val expectedFinds = listOf(
+                Find(1, 16),
+                Find(17, 32)
+        )
+
+        assertEquals(expectedFinds, finds)
     }
 
     private fun loadResource(resource: String): File {
