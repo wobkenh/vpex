@@ -104,7 +104,8 @@ class SettingsController : Controller() {
         properties.setProperty("insecure", settings.insecure.toString())
         properties.setProperty("contextMenu", settings.contextMenu.toString())
         properties.setProperty("syntaxHighlighting", settings.syntaxHighlighting.toString())
-        properties.setProperty("startMenuEntry", settings.startMenu.toString())
+        properties.setProperty("startMenu", settings.startMenu.toString())
+        properties.setProperty("desktopIcon", settings.desktopIcon.toString())
         properties.store(configFile.outputStream(), "")
         applySettings(settings)
     }
@@ -141,7 +142,8 @@ class SettingsController : Controller() {
                         properties.getProperty("insecure", "false") == "true",
                         properties.getProperty("contextMenu", VpexConstants.isWindows.toString()) == "true",
                         properties.getProperty("syntaxHighlighting", "false") == "true",
-                        properties.getProperty("startMenuEntry", VpexConstants.isWindows.toString()) == "true"
+                        properties.getProperty("startMenu", VpexConstants.isWindows.toString()) == "true",
+                        properties.getProperty("desktopIcon", VpexConstants.isWindows.toString()) == "true"
 
                 )
             } catch (e: Exception) {
@@ -206,7 +208,8 @@ class SettingsController : Controller() {
                     insecure = false,
                     contextMenu = VpexConstants.isWindows,
                     syntaxHighlighting = false,
-                    startMenu = VpexConstants.isWindows
+                    startMenu = VpexConstants.isWindows,
+                    desktopIcon = VpexConstants.isWindows
             )
 
     private fun validateSettings(settings: Settings) {

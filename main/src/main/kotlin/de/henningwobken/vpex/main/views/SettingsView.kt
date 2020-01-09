@@ -3,7 +3,7 @@ package de.henningwobken.vpex.main.views
 import de.henningwobken.vpex.main.controllers.SettingsController
 import de.henningwobken.vpex.main.controllers.UpdateController
 import de.henningwobken.vpex.main.controllers.WindowsContextMenuController
-import de.henningwobken.vpex.main.controllers.WindowsStartMenuController
+import de.henningwobken.vpex.main.controllers.WindowsLinkController
 import de.henningwobken.vpex.main.model.Settings
 import de.henningwobken.vpex.main.model.VpexConstants
 import javafx.application.Platform
@@ -24,7 +24,7 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val updateController: UpdateController by inject()
     private val settingsController: SettingsController by inject()
     private val windowsContextMenuController: WindowsContextMenuController by inject()
-    private val windowsStartMenuController: WindowsStartMenuController by inject()
+    private val windowsLinkController: WindowsLinkController by inject()
 
     private val wrapProperty = SimpleBooleanProperty()
     private val schemaBasePathList = mutableListOf<String>()
@@ -49,8 +49,10 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val contextMenuProperty = SimpleBooleanProperty()
     private val syntaxHighlightingProperty = SimpleBooleanProperty()
     private val startMenuProperty = SimpleBooleanProperty()
+    private val desktopIconProperty = SimpleBooleanProperty()
     private var hadContextMenu: Boolean
     private var hadStartMenu: Boolean
+    private var hadDesktopIcon: Boolean
 
     init {
         val settings = settingsController.getSettings()
@@ -74,8 +76,10 @@ class SettingsView : View("VPEX - Einstellungen") {
         contextMenuProperty.set(settings.contextMenu)
         syntaxHighlightingProperty.set(settings.syntaxHighlighting)
         startMenuProperty.set(settings.startMenu)
+        desktopIconProperty.set(settings.desktopIcon)
         hadContextMenu = settings.contextMenu
         hadStartMenu = settings.startMenu
+        hadDesktopIcon = settings.desktopIcon
     }
 
     override val root = borderpane {
@@ -118,6 +122,10 @@ class SettingsView : View("VPEX - Einstellungen") {
                     field("Windows Start Menu Entry") {
                         removeWhen(SimpleBooleanProperty(!VpexConstants.isWindows))
                         checkbox("", startMenuProperty)
+                    }
+                    field("Windows Desktop Icon Entry") {
+                        removeWhen(SimpleBooleanProperty(!VpexConstants.isWindows))
+                        checkbox("", desktopIconProperty)
                     }
                 }
                 fieldset("Files") {
@@ -306,7 +314,8 @@ class SettingsView : View("VPEX - Einstellungen") {
                 insecureProperty.get(),
                 contextMenuProperty.get(),
                 syntaxHighlightingProperty.get(),
-                startMenuProperty.get()
+                startMenuProperty.get(),
+                desktopIconProperty.get()
         )
         settingsController.saveSettings(settings)
         if (hadContextMenu != settings.contextMenu) {
@@ -320,9 +329,17 @@ class SettingsView : View("VPEX - Einstellungen") {
         if (hadStartMenu != settings.startMenu) {
             hadStartMenu = settings.startMenu
             if (settings.startMenu) {
-                windowsStartMenuController.addVpexEntry()
+                windowsLinkController.addVpexStartMenuEntry()
             } else {
-                windowsStartMenuController.removeVpexEntry()
+                windowsLinkController.removeVpexStartMenuEntry()
+            }
+        }
+        if (hadDesktopIcon != settings.desktopIcon) {
+            hadDesktopIcon = settings.desktopIcon
+            if (settings.desktopIcon) {
+                windowsLinkController.addVpexDesktopIcon()
+            } else {
+                windowsLinkController.removeVpexDesktopIcon()
             }
         }
         backToMainScreen()

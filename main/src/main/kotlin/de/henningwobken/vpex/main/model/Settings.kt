@@ -24,7 +24,8 @@ class Settings(
         val insecure: Boolean,
         val contextMenu: Boolean,
         val syntaxHighlighting: Boolean,
-        val startMenu: Boolean
+        val startMenu: Boolean,
+        val desktopIcon: Boolean
 ) {
     fun hasProxy(): Boolean = proxyHost.isNotBlank()
 
