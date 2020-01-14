@@ -83,7 +83,7 @@ class WindowsLinkController : Controller() {
     }
 
     private fun hasCorrectPath(file: File, name: String): Boolean {
-        if (startMenuFile.exists()) {
+        if (file.exists()) {
             logger.debug { "Vpex $name exists. Checking Destination" }
             val shellLink = ShellLink(file)
             val target = shellLink.resolveTarget()
