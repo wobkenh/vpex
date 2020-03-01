@@ -11,9 +11,9 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="main" target="1.5" />
-      <module name="parent" target="1.5" />
-      <module name="updater" target="1.5" />
+      <module name="main" target="1.8" />
+      <module name="parent" target="1.8" />
+      <module name="updater" target="1.8" />
       <module name="vpex" target="1.5" />
     </bytecodeTargetLevel>
   </component>

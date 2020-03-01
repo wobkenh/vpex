@@ -15,10 +15,12 @@
     </modules>
 
     <properties>
-        <revision>0.22</revision>
+        <revision>0.23</revision>
         <kotlin.version>1.3.20</kotlin.version>
         <tornadofx.version>1.7.19</tornadofx.version>
         <kotlin.compiler.incremental>true</kotlin.compiler.incremental>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
     </properties>
 
     <dependencies>
