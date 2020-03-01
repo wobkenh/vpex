@@ -194,6 +194,13 @@ class StatusBarView : View() {
                             page.isEqualTo(1)
                         }
                     }.action {
+                        moveToPage.get()(1)
+                    }
+                    button("<") {
+                        disableWhen {
+                            page.isEqualTo(1)
+                        }
+                    }.action {
                         moveToPage.get()(page.get() - 1)
                     }
                     hbox(5) {
@@ -213,12 +220,19 @@ class StatusBarView : View() {
                         label("/")
                         label(maxPage)
                     }
-                    button(">>") {
+                    button(">") {
                         disableWhen {
                             page.greaterThanOrEqualTo(maxPage)
                         }
                     }.action {
                         moveToPage.get()(page.get() + 1)
+                    }
+                    button(">>") {
+                        disableWhen {
+                            page.greaterThanOrEqualTo(maxPage)
+                        }
+                    }.action {
+                        moveToPage.get()(maxPage.get())
                     }
                 }
 
