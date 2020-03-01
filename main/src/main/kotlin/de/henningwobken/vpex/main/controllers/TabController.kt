@@ -2,11 +2,12 @@ package de.henningwobken.vpex.main.controllers
 
 import de.henningwobken.vpex.main.views.TabView
 import javafx.scene.control.Tab
+import mu.KotlinLogging
 import tornadofx.*
 import java.io.File
 
 class TabController : Controller() {
-
+    private val logger = KotlinLogging.logger {}
     private val lock = Object()
     private val tabs = mutableMapOf<Tab, TabView>()
 
@@ -25,16 +26,22 @@ class TabController : Controller() {
         tab.toggleClass("tab-unchanged", !isDirty)
     }
 
-    fun closeTab(tab: Tab) {
+    fun closeTab(tab: Tab, callback: () -> Unit) {
+        logger.debug { "Closing Tab @ TabController" }
         val tabView = getTabView(tab)
-        synchronized(lock) {
-            tabs.remove(tab)
+        tabView.closeTab {
+            synchronized(lock) {
+                logger.debug { "Callback @ TabController" }
+                callback()
+                logger.debug { "Removing Tab @ TabController" }
+                tabs.remove(tab)
+            }
         }
-        tabView.closeTab()
     }
 
     fun getTabView(tab: Tab): TabView {
         synchronized(lock) {
+            logger.debug { "Getting Tab " + tab.text }
             return tabs[tab]!!
         }
     }

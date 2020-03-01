@@ -361,8 +361,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                 newCounter++
                 "New $newCounter"
             }
-            tab.setOnClosed {
-                tabController.closeTab(tab)
+            logger.debug { "Creating tab ${tab.text}" }
+            tab.setOnCloseRequest {
+                logger.debug { tabPane.tabs }
+                logger.debug { "Request to close tab ${tab.text}" }
+                //                closeTab(tab)
+                it.consume()
             }
             val view = find(TabView::class)
             if (file != null) {
@@ -422,8 +426,9 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     }
 
     private fun closeTab(tab: Tab) {
-        tabController.closeTab(tab)
-        tabPane.tabs.remove(tab)
+        tabController.closeTab(tab) {
+            tabPane.tabs.remove(tab)
+        }
     }
 
 

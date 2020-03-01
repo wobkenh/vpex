@@ -655,12 +655,35 @@ class TabView : Fragment("File") {
     /**
      * Cleanup work before this tab can be removed
      */
-    fun closeTab() {
+    fun closeTab(callback: (() -> Unit)) {
+        logger.debug { "Closing Tab @ TabView" }
+        if (this.isDirty.get()) {
+            alert(Alert.AlertType.CONFIRMATION, "Unsaved changes", "Unsaved changes will be lost if you do not save.\nDo you want to save?", ButtonType.YES, ButtonType.NO, ButtonType.CANCEL, actionFn = {
+                when (it.buttonData.typeCode) {
+                    ButtonType.YES.buttonData.typeCode -> {
+                        saveFileAs {
+                            stopWatchingFile()
+                            callback()
+                        }
+                    }
+                    ButtonType.NO.buttonData.typeCode -> {
+                        stopWatchingFile()
+                        logger.debug { "Callback @ TabView" }
+                        callback()
+                    }
+                }
+            })
+        } else {
+            stopWatchingFile()
+            callback()
+        }
+    }
+
+    private fun stopWatchingFile() {
         val oldFile = file
         if (oldFile != null) {
             fileWatcher.stopWatching(oldFile)
         }
-        // TODO: Ask to save if file is dirty
     }
 
     /**
