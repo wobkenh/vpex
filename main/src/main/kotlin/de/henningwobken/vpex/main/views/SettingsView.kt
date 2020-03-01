@@ -258,7 +258,9 @@ class SettingsView : View("VPEX - Einstellungen") {
                     }
                     field("Available Versions") {
                         combobox(targetVersionProperty, updateController.availableVersions)
-                        button("Change Version").action {
+                        button("Change Version") {
+                            disableWhen(targetVersionProperty.isNull)
+                        }.action {
                             progressProperty.set(0.0)
                             updateController.downloadUpdate({ progress, max ->
                                 Platform.runLater {
