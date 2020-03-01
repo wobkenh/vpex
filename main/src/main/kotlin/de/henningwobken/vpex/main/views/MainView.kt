@@ -357,7 +357,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             tabPane.selectionModel.select(tabController.getTab(tabView))
         } else {
             val tab = Tab()
-            tab.text = if (file != null) file.name else {
+            tab.text = if (file != null) {
+                // If the current tab is a temporary "new"-tab that has not been edited, replace it
+                val selectedTab = tabPane.selectionModel.selectedItem
+                val selectedTabView = tabController.getTabView(selectedTab)
+                // TODO: Fix isDirty to return to false if original content is restored
+                if (!selectedTabView.isDirty.get() && !selectedTabView.hasFile.get()) {
+                    requestCloseTab(selectedTab)
+                }
+                file.name
+            } else {
                 newCounter++
                 "New $newCounter"
             }
