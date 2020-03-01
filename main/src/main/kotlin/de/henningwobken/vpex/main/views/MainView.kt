@@ -142,7 +142,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         currentlyActiveTabView().saveFileAs()
                     }
                     item("Close", "Shortcut+W").action {
-                        closeTab(currentlyActiveTab())
+                        requestCloseTab(currentlyActiveTab())
                     }
                 }
                 menu("View") {
@@ -365,8 +365,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             tab.setOnCloseRequest {
                 logger.debug { tabPane.tabs }
                 logger.debug { "Request to close tab ${tab.text}" }
-                //                closeTab(tab)
+                requestCloseTab(tab)
                 it.consume()
+            }
+            tab.setOnClosed {
+                logger.debug { "Closing tab ${tab.text}" }
+                tabController.closeTab(tab)
             }
             val view = find(TabView::class)
             if (file != null) {
@@ -374,24 +378,24 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             }
             tab.contextMenu = contextmenu {
                 item("Close this").action {
-                    closeTab(tab)
+                    requestCloseTab(tab)
                 }
                 item("Close Others").action {
-                    tabPane.tabs.filter { it != tab }.forEach { closeTab(it) }
+                    tabPane.tabs.filter { it != tab }.forEach { requestCloseTab(it) }
                 }
                 item("Close All").action {
                     tabPane.tabs.slice(IntRange(0, tabPane.tabs.size - 1))
-                            .forEach { closeTab(it) }
+                            .forEach { requestCloseTab(it) }
                 }
                 item("Close All to the Left").action {
                     val index = tabPane.tabs.indexOf(tab)
                     tabPane.tabs.slice(IntRange(0, index - 1))
-                            .forEach { closeTab(it) }
+                            .forEach { requestCloseTab(it) }
                 }
                 item("Close All to the Reft").action {
                     val index = tabPane.tabs.indexOf(tab)
                     tabPane.tabs.slice(IntRange(index + 1, tabPane.tabs.size - 1))
-                            .forEach { closeTab(it) }
+                            .forEach { requestCloseTab(it) }
                 }
                 separator()
                 item("Show in Explorer") {
@@ -425,12 +429,11 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         }
     }
 
-    private fun closeTab(tab: Tab) {
-        tabController.closeTab(tab) {
+    private fun requestCloseTab(tab: Tab) {
+        tabController.requestCloseTab(tab) {
             tabPane.tabs.remove(tab)
         }
     }
-
 
     // Draggable Tabs
 

@@ -655,34 +655,35 @@ class TabView : Fragment("File") {
     /**
      * Cleanup work before this tab can be removed
      */
-    fun closeTab(callback: (() -> Unit)) {
+    fun closeTab() {
         logger.debug { "Closing Tab @ TabView" }
+        val oldFile = file
+        if (oldFile != null) {
+            fileWatcher.stopWatching(oldFile)
+        }
+    }
+
+    /**
+     * Check if tab can be closed and if there are unsaved changes, ask the user if he wants to close the tab.
+     */
+    fun requestCloseTab(callback: (() -> Unit)) {
         if (this.isDirty.get()) {
             alert(Alert.AlertType.CONFIRMATION, "Unsaved changes", "Unsaved changes will be lost if you do not save.\nDo you want to save?", ButtonType.YES, ButtonType.NO, ButtonType.CANCEL, actionFn = {
                 when (it.buttonData.typeCode) {
                     ButtonType.YES.buttonData.typeCode -> {
                         saveFileAs {
-                            stopWatchingFile()
+                            logger.debug { "Allow close after save @ TabView" }
                             callback()
                         }
                     }
                     ButtonType.NO.buttonData.typeCode -> {
-                        stopWatchingFile()
-                        logger.debug { "Callback @ TabView" }
+                        logger.debug { "Allow close without save @ TabView" }
                         callback()
                     }
                 }
             })
         } else {
-            stopWatchingFile()
             callback()
-        }
-    }
-
-    private fun stopWatchingFile() {
-        val oldFile = file
-        if (oldFile != null) {
-            fileWatcher.stopWatching(oldFile)
         }
     }
 

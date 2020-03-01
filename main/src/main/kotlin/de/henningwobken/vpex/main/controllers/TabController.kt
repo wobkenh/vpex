@@ -26,15 +26,22 @@ class TabController : Controller() {
         tab.toggleClass("tab-unchanged", !isDirty)
     }
 
-    fun closeTab(tab: Tab, callback: () -> Unit) {
+    fun closeTab(tab: Tab) {
         logger.debug { "Closing Tab @ TabController" }
         val tabView = getTabView(tab)
-        tabView.closeTab {
+        synchronized(lock) {
+            tabs.remove(tab)
+        }
+        tabView.closeTab()
+    }
+
+    fun requestCloseTab(tab: Tab, callback: () -> Unit) {
+        logger.debug { "Requesting to close Tab @ TabController" }
+        val tabView = getTabView(tab)
+        tabView.requestCloseTab {
             synchronized(lock) {
                 logger.debug { "Callback @ TabController" }
                 callback()
-                logger.debug { "Removing Tab @ TabController" }
-                tabs.remove(tab)
             }
         }
     }
