@@ -9,6 +9,7 @@ import de.henningwobken.vpex.main.model.DisplayMode
 import de.henningwobken.vpex.main.model.InternalResource
 import javafx.beans.property.*
 import javafx.geometry.Pos
+import javafx.scene.Cursor
 import javafx.scene.control.Label
 import javafx.scene.layout.Priority
 import mu.KotlinLogging
@@ -259,11 +260,16 @@ class StatusBarView : View() {
                 }) {
                     paddingHorizontal = 5
                     isFillHeight = true
+                    cursor = Cursor.HAND
                     maxHeight = Double.MAX_VALUE
                     prefWidth = 145.0
                     alignment = Pos.CENTER
                     removeWhen(showMonitorThread.not())
                     memoryLabel = this
+                    setOnMouseClicked {
+                        logger.info { "Manually asking Java to perform garbage collection" }
+                        System.gc()
+                    }
                 }
 
             }
