@@ -84,8 +84,19 @@ class WindowsLinkController : Controller() {
 
     private fun hasCorrectPath(file: File, name: String): Boolean {
         if (file.exists()) {
+            // For some reason, file.exists may return true
+            // even though java.nio.file.NoSuchFileException is thrown when opening the shell link
+            var shellLink: ShellLink? = null
+            try {
+                shellLink = ShellLink(file)
+            } catch (e: Exception) {
+                logger.info { "Vpex $name does not exist." }
+            }
+            if (shellLink == null) {
+                return false
+            }
+
             logger.debug { "Vpex $name exists. Checking Destination" }
-            val shellLink = ShellLink(file)
             val target = shellLink.resolveTarget()
             val currentPath = currentJarController.currentPath
             return if (target == currentPath) {

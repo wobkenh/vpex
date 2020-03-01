@@ -144,7 +144,6 @@ class SettingsController : Controller() {
                         properties.getProperty("syntaxHighlighting", "false") == "true",
                         properties.getProperty("startMenu", VpexConstants.isWindows.toString()) == "true",
                         properties.getProperty("desktopIcon", VpexConstants.isWindows.toString()) == "true"
-
                 )
             } catch (e: Exception) {
                 logger.error { "Error while parsing settings." }
