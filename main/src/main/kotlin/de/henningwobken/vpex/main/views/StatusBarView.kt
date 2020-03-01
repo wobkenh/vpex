@@ -310,7 +310,7 @@ class StatusBarView : View() {
     }
 
     fun unbind() {
-        logger.debug { "Binding from any tab view" }
+        logger.debug { "Unbinding Tab View" }
         isDirty.unbind()
         isDirty.set(false)
         saveLockProperty.unbind()
