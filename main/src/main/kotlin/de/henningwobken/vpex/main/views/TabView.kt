@@ -804,6 +804,7 @@ class TabView : Fragment("File") {
             lineCount.bind(pageTotalLineCount)
             moveToPage(1, SyncDirection.TO_CODEAREA) {
                 this.codeArea.moveTo(0, 0)
+                codeArea.undoManager.forgetHistory()
             }
         } else if (this.settingsController.getSettings().pagination) {
             this.fullText = file.readText()
@@ -812,18 +813,22 @@ class TabView : Fragment("File") {
                 displayMode.set(DisplayMode.PAGINATION)
                 dirtySinceLastSync = true
                 lineCount.bind(pageTotalLineCount)
-                moveToPage(1, SyncDirection.TO_CODEAREA)
+                moveToPage(1, SyncDirection.TO_CODEAREA) {
+                    codeArea.undoManager.forgetHistory()
+                }
             } else {
                 logger.info { "Opening file in plain mode" }
                 displayMode.set(DisplayMode.PLAIN)
                 replaceText(file.readText())
                 lineCount.bind(codeArea.paragraphs.sizeProperty)
+                codeArea.undoManager.forgetHistory()
             }
         } else {
             logger.info { "Opening file in plain mode" }
             displayMode.set(DisplayMode.PLAIN)
             lineCount.bind(codeArea.paragraphs.sizeProperty)
             replaceText(file.readText())
+            codeArea.undoManager.forgetHistory()
         }
         this.codeArea.moveTo(0, 0)
         this.isDirty.set(false)
