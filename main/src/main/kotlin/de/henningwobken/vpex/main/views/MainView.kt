@@ -267,9 +267,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             val dragboard = event.dragboard
             var success = false
             if (dragboard.hasFiles()) {
-                val file = dragboard.files.first()
-                if (file.exists() && file.isFile) {
-                    open(file)
+                for (file in dragboard.files) {
+                    if (file.exists() && file.isFile) {
+                        open(file)
+                    }
                 }
                 success = true
             }
