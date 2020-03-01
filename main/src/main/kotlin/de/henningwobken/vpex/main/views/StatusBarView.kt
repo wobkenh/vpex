@@ -58,6 +58,7 @@ class StatusBarView : View() {
     private var maxPage = SimpleIntegerProperty(0)
     // Selection and Cursor
     private val selectionLength = SimpleIntegerProperty(0)
+    private val selectionLines = SimpleIntegerProperty(0)
     private val cursorLine = SimpleIntegerProperty(0)
     private val cursorColumn = SimpleIntegerProperty(0)
 
@@ -152,12 +153,16 @@ class StatusBarView : View() {
                 hbox(10) {
                     hbox(5) {
                         removeWhen { selectionLength.eq(0) }
+                        addClass(Styles.selectionContainer)
                         alignment = Pos.CENTER
-                        label("Selected:")
+                        label("Chars:")
                         label(selectionLength.stringBinding {
                             numberFormat.format(it)
                         })
-                        label("chars")
+                        label("Lines:")
+                        label(selectionLines.stringBinding {
+                            numberFormat.format(it)
+                        })
                     }
                     hbox(5) {
                         alignment = Pos.CENTER
@@ -293,6 +298,7 @@ class StatusBarView : View() {
         page.bind(tabView.page)
         maxPage.bind(tabView.maxPage)
         selectionLength.bind(tabView.selectionLength)
+        selectionLines.bind(tabView.selectionLines)
         cursorLine.bind(tabView.cursorLine)
         cursorColumn.bind(tabView.cursorColumn)
     }
@@ -317,6 +323,8 @@ class StatusBarView : View() {
         maxPage.set(0)
         selectionLength.unbind()
         selectionLength.set(0)
+        selectionLines.unbind()
+        selectionLines.set(0)
         cursorLine.unbind()
         cursorLine.set(0)
         cursorColumn.unbind()

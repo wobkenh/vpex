@@ -27,6 +27,7 @@ class Styles : Stylesheet() {
         val selectable by cssclass()
         val selectableMultiline by cssclass()
         val councilBackground by cssclass()
+        val selectionContainer by cssclass()
 
         // effects
         val dropShadow: DropShadow = {
@@ -50,6 +51,10 @@ class Styles : Stylesheet() {
     }
 
     init {
+        selectionContainer {
+            backgroundColor += c(0, 0, 0, 0.125)
+            padding = box(5.px)
+        }
         unchanged {
             textFill = Color.WHITE
             backgroundColor += primaryColor

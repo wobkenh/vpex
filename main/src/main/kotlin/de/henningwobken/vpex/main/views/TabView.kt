@@ -100,6 +100,7 @@ class TabView : Fragment("File") {
     // Selection and cursor
 
     val selectionLength = SimpleIntegerProperty(0)
+    val selectionLines = SimpleIntegerProperty(0)
     val cursorLine = SimpleIntegerProperty(0)
     val cursorColumn = SimpleIntegerProperty(0)
 
@@ -1287,6 +1288,12 @@ class TabView : Fragment("File") {
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         codeArea.selectionProperty().onChange {
             selectionLength.set(it?.length ?: 0)
+            if (it != null) {
+                val substring = this.getFullText().substring(it.start, it.end)
+                selectionLines.set(stringUtils.countLinesInString(substring))
+            } else {
+                selectionLines.set(0)
+            }
         }
         codeArea.caretPositionProperty().onChange {
             var line = codeArea.currentParagraph
