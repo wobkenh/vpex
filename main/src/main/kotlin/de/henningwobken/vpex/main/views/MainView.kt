@@ -57,7 +57,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
     init {
         internalResourceController.getAsStrings(InternalResource.BANNER).forEach(::println)
         if (settingsController.getSettings().contextMenu) {
-            windowsContextMenuController.addVpexEntry()
+            windowsContextMenuController.addVpexContextMenuEntry()
         }
         if (settingsController.getSettings().startMenu) {
             windowsLinkController.addVpexStartMenuEntry()
@@ -68,33 +68,25 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (settingsController.getSettings().autoUpdate) {
             statusTextProperty.set("Checking for updates")
             Thread {
-                logger.info { "Checking for updates" }
-                if (updateController.updateAvailable()) {
-                    logger.info { "Update available. Downloading." }
+                updateController.updateRoutine(downloadStartedCallback = {
                     Platform.runLater {
                         statusTextProperty.set("Downloading updates")
                         downloadProgressProperty.set(0.0)
                     }
-                    updateController.downloadUpdate(progressCallback = { progress, max ->
-                        Platform.runLater {
-                            downloadProgressProperty.set(progress / (max * 1.0))
-                        }
-                    }, finishCallback = {
-                        Platform.runLater {
-                            logger.info { "Download finished." }
-                            downloadProgressProperty.set(-1.0)
-                            statusTextProperty.set("")
-                            confirm("New Version", "A new version has been downloaded. Restart?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
-                                updateController.applyUpdate()
-                            })
-                        }
-                    })
-                } else {
-                    logger.info { "Up to date." }
+                }, downloadProgressCallback = { progress, max ->
+                    Platform.runLater {
+                        downloadProgressProperty.set(progress / (max * 1.0))
+                    }
+                }, downloadFinishedCallback = {
+                    Platform.runLater {
+                        downloadProgressProperty.set(-1.0)
+                        statusTextProperty.set("")
+                    }
+                }, noUpdateCallback = {
                     Platform.runLater {
                         statusTextProperty.set("")
                     }
-                }
+                })
             }.start()
         }
 

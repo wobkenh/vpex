@@ -4,7 +4,7 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.*
 
-class Settings(
+data class Settings(
         val schemaBasePathList: List<String>,
         val wrapText: Boolean,
         val prettyPrintIndent: Int,
@@ -25,9 +25,11 @@ class Settings(
         val contextMenu: Boolean,
         val syntaxHighlighting: Boolean,
         val startMenu: Boolean,
-        val desktopIcon: Boolean
+        val desktopIcon: Boolean,
+        val ignoreAutoUpdateError: Boolean
 ) {
     fun hasProxy(): Boolean = proxyHost.isNotBlank()
 
     fun getProxy(): Proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort!!))
+
 }

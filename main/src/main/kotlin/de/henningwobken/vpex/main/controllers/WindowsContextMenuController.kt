@@ -18,7 +18,7 @@ class WindowsContextMenuController : Controller() {
     private val commandUnescaped = "\"$wscriptPath\" \"$userHome\\.vpex\\receive.vbs\" \"%1\""
 
 
-    fun addVpexEntry() {
+    fun addVpexContextMenuEntry() {
         if (windowsRegistryController.isWindows()) {
             logger.debug("Is Windows. Checking for Vpex entry")
             logger.debug("Checking for '*' classes entry")
@@ -41,7 +41,7 @@ class WindowsContextMenuController : Controller() {
         }
     }
 
-    fun removeVpexEntry() {
+    fun removeVpexContextMenuEntry() {
         if (windowsRegistryController.isWindows()) {
             // Registry Entries
             if (windowsRegistryController.deleteRegistryLocation(vpexLocation)) {

@@ -28,6 +28,8 @@ class Styles : Stylesheet() {
         val selectableMultiline by cssclass()
         val councilBackground by cssclass()
         val selectionContainer by cssclass()
+        val errorText by cssclass()
+        val successText by cssclass()
 
         // effects
         val dropShadow: DropShadow = {
@@ -45,12 +47,20 @@ class Styles : Stylesheet() {
         // colors
         val dangerColor = c("#AF8016")
         val errorColor = c("#A1140A")
+        val successColor = c("green")
         val primaryColor = c("#1F1E2F")
         val secondaryColor = c("#0A92BF")
         val secondaryColorDarker = c("#0A7BA5")
     }
 
     init {
+        errorText {
+            textFill = errorColor
+        }
+        successText {
+            textFill = successColor
+            fontWeight = FontWeight.BOLD
+        }
         selectionContainer {
             backgroundColor += c(0, 0, 0, 0.125)
             padding = box(5.px)

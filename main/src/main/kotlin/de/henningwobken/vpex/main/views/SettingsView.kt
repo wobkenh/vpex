@@ -316,15 +316,16 @@ class SettingsView : View("VPEX - Einstellungen") {
                 contextMenuProperty.get(),
                 syntaxHighlightingProperty.get(),
                 startMenuProperty.get(),
-                desktopIconProperty.get()
+                desktopIconProperty.get(),
+                settingsController.getSettings().ignoreAutoUpdateError
         )
         settingsController.saveSettings(settings)
         if (hadContextMenu != settings.contextMenu) {
             hadContextMenu = settings.contextMenu
             if (settings.contextMenu) {
-                windowsContextMenuController.addVpexEntry()
+                windowsContextMenuController.addVpexContextMenuEntry()
             } else {
-                windowsContextMenuController.removeVpexEntry()
+                windowsContextMenuController.removeVpexContextMenuEntry()
             }
         }
         if (hadStartMenu != settings.startMenu) {

@@ -106,6 +106,7 @@ class SettingsController : Controller() {
         properties.setProperty("syntaxHighlighting", settings.syntaxHighlighting.toString())
         properties.setProperty("startMenu", settings.startMenu.toString())
         properties.setProperty("desktopIcon", settings.desktopIcon.toString())
+        properties.setProperty("ignoreAutoUpdateError", settings.ignoreAutoUpdateError.toString())
         properties.store(configFile.outputStream(), "")
         applySettings(settings)
     }
@@ -143,7 +144,8 @@ class SettingsController : Controller() {
                         properties.getProperty("contextMenu", VpexConstants.isWindows.toString()) == "true",
                         properties.getProperty("syntaxHighlighting", "false") == "true",
                         properties.getProperty("startMenu", VpexConstants.isWindows.toString()) == "true",
-                        properties.getProperty("desktopIcon", VpexConstants.isWindows.toString()) == "true"
+                        properties.getProperty("desktopIcon", VpexConstants.isWindows.toString()) == "true",
+                        properties.getProperty("ignoreAutoUpdateError", "false") == "true"
                 )
             } catch (e: Exception) {
                 logger.error { "Error while parsing settings." }
@@ -168,22 +170,26 @@ class SettingsController : Controller() {
             System.setProperty("javax.net.ssl.trustStorePassword", settings.trustStorePassword);
         }
         if (settings.insecure) {
-            logger.warn("Disabling SSL security")
-            val dummyTrustManager = arrayOf<TrustManager>(object : X509TrustManager {
-                override fun checkClientTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {
-                }
-
-                override fun checkServerTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {
-                }
-
-                override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate>? {
-                    return null
-                }
-            })
-            val sc = SSLContext.getInstance("SSL")
-            sc.init(null, dummyTrustManager, java.security.SecureRandom())
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.socketFactory);
+            disableSSLSecurity()
         }
+    }
+
+    fun disableSSLSecurity() {
+        logger.warn("Disabling SSL security")
+        val dummyTrustManager = arrayOf<TrustManager>(object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {
+            }
+
+            override fun checkServerTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {
+            }
+
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate>? {
+                return null
+            }
+        })
+        val sslContext = SSLContext.getInstance("SSL")
+        sslContext.init(null, dummyTrustManager, java.security.SecureRandom())
+        HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
     }
 
     private fun getDefaultSettings(): Settings =
@@ -208,7 +214,8 @@ class SettingsController : Controller() {
                     contextMenu = VpexConstants.isWindows,
                     syntaxHighlighting = false,
                     startMenu = VpexConstants.isWindows,
-                    desktopIcon = VpexConstants.isWindows
+                    desktopIcon = VpexConstants.isWindows,
+                    ignoreAutoUpdateError = false
             )
 
     private fun validateSettings(settings: Settings) {

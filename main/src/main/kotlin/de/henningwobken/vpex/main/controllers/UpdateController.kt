@@ -1,9 +1,10 @@
 package de.henningwobken.vpex.main.controllers
 
 import de.henningwobken.vpex.main.model.InternalResource
+import de.henningwobken.vpex.main.views.ProxySettingsFragment
 import javafx.application.Platform
-import javafx.scene.control.Alert
-import javafx.scene.layout.Region
+import javafx.scene.control.ButtonType
+import javafx.stage.StageStyle
 import mu.KotlinLogging
 import tornadofx.*
 import java.io.File
@@ -15,8 +16,12 @@ import java.net.URLConnection
 import kotlin.system.exitProcess
 
 class UpdateController : Controller() {
+
+    companion object {
+        const val url: String = "https://simplex24.de/vpex"
+    }
+
     private val logger = KotlinLogging.logger {}
-    private val url: String = "https://simplex24.de/vpex"
     private val settingsController: SettingsController by inject()
     private val internalResourceController: InternalResourceController by inject()
     private val currentJarController: CurrentJarController by inject()
@@ -28,6 +33,7 @@ class UpdateController : Controller() {
 
     var availableVersions: List<String> = listOf()
         get() {
+            logger.debug { "Getting available Versions" }
             if (field.isEmpty()) {
                 field = loadAvailableVersions()
             }
@@ -56,12 +62,14 @@ class UpdateController : Controller() {
 
     fun downloadUpdate(
             progressCallback: (progress: Int, max: Int) -> Unit,
-            finishCallback: () -> Unit,
+            finishCallback: (version: String) -> Unit,
             targetVersion: String = ""
     ): ProgressListener {
 
         val version = if (targetVersion.isEmpty()) availableVersions.last() else targetVersion
-        val progressListener = ProgressListener(progressCallback, finishCallback)
+        val progressListener = ProgressListener(progressCallback, finishCallback = {
+            finishCallback(version)
+        })
 
         Thread {
             if (newJar.exists()) {
@@ -91,6 +99,44 @@ class UpdateController : Controller() {
         exitProcess(0)
     }
 
+    /**
+     * Controls the whole update workflow and informs the UI about changes
+     * If the connections fails, a dialog will appear to ask the user if he is behind a proxy.
+     * From there, the updateRoutine might be called again if the user chooses to
+     */
+    fun updateRoutine(
+            downloadStartedCallback: () -> Unit,
+            downloadProgressCallback: (progress: Int, max: Int) -> Unit,
+            downloadFinishedCallback: () -> Unit,
+            noUpdateCallback: () -> Unit
+    ) {
+        logger.info { "Checking for updates" }
+        val availableVersions = loadAvailableVersions {
+            updateRoutine(downloadStartedCallback, downloadProgressCallback, downloadFinishedCallback, noUpdateCallback)
+        }
+        if (availableVersions.isEmpty()) {
+            noUpdateCallback()
+            return
+        }
+        this.availableVersions = availableVersions
+        if (updateAvailable()) {
+            logger.info { "Update available. Downloading." }
+            downloadStartedCallback()
+            downloadUpdate(progressCallback = downloadProgressCallback, finishCallback = { version ->
+                logger.info { "Download for version $version finished." }
+                downloadFinishedCallback()
+                Platform.runLater {
+                    confirm("New Version", "New version $version has been downloaded. Restart?", ButtonType.OK, ButtonType.CANCEL, actionFn = {
+                        applyUpdate()
+                    })
+                }
+            })
+        } else {
+            logger.info { "Up to date." }
+            noUpdateCallback()
+        }
+    }
+
     private fun readFile(inputStream: InputStream, outputStream: OutputStream, progressListener: ProgressListener, max: Int) {
         val dataBuffer = ByteArray(1024)
         var bytesRead = 0
@@ -117,7 +163,7 @@ class UpdateController : Controller() {
         return connection
     }
 
-    private fun loadAvailableVersions(): List<String> {
+    private fun loadAvailableVersions(onErrorRetryCallback: (() -> Unit)? = null): List<String> {
         val urlConnection = getUrlConnection("$url/versions.txt")
         return try {
             logger.info { "Trying to connect" }
@@ -125,23 +171,16 @@ class UpdateController : Controller() {
             urlConnection.getInputStream().bufferedReader().use { it.readText() }
                     .split("\n").filter(String::isNotEmpty)
         } catch (e: Exception) {
-            Platform.runLater {
-                logger.error("Could not find versions.txt. Assuming temporary connection outage", e)
-                val alert = Alert(Alert.AlertType.WARNING, """
-                    Could not contact server to check for available updates, error:
-                    
-                    ${e.javaClass.name}: ${e.message}
-                        
-                    Please verify that your proxy settings are correct and test if your connection is working.
-                    If your connection is working correctly, then there might be a server outage, in which case:
-                    I'm sorry for the inconvenience! Please contact me at henning.wobken@simplex24.de to let me know.
-                    Thanks.
-                    
-                    In the meanwhile, you can continue using vpex. This error only impacts auto-update.
-                    """.trimIndent())
-                alert.title = "Auto update check failed"
-                alert.dialogPane.minHeight = Region.USE_PREF_SIZE
-                alert.showAndWait()
+            if (settingsController.getSettings().ignoreAutoUpdateError) {
+                return listOf()
+            }
+            if (onErrorRetryCallback != null) {
+                Platform.runLater {
+                    val resultFragment = find<ProxySettingsFragment>()
+                    resultFragment.retryCallback = onErrorRetryCallback
+                    val stage = resultFragment.openWindow(stageStyle = StageStyle.UTILITY)
+                    stage?.requestFocus()
+                }
             }
             listOf()
         }
