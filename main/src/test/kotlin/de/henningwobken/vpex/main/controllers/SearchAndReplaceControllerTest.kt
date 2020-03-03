@@ -189,6 +189,36 @@ class SearchAndReplaceControllerTest {
     }
 
     @Test
+    fun `find next disk pagination search term on current page`() {
+
+
+        val pageSize = 50
+        val pageByteIndexes = fileCalculationController.calcStartingByteIndexesAndLineCounts(testFile, pageSize) {}.pageStartingByteIndexes
+        var find = searchAndReplaceController.findNextFromDisk(testFile, "search", 0, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false, currentPageIndex = 0, currentPageText = "search")
+        find!!
+        assertEquals(0, find.start)
+        assertEquals(6, find.end)
+
+        val noFind = searchAndReplaceController.findNextFromDisk(testFile, "search", 141, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        assertNull(noFind)
+    }
+
+    @Test
+    fun `find next disk pagination search term on page after current page`() {
+
+
+        val pageSize = 50
+        val pageByteIndexes = fileCalculationController.calcStartingByteIndexesAndLineCounts(testFile, pageSize) {}.pageStartingByteIndexes
+        var find = searchAndReplaceController.findNextFromDisk(testFile, "search", 0, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false, currentPageIndex = 0, currentPageText = "test123")
+        find!!
+        assertEquals(91, find.start)
+        assertEquals(97, find.end)
+
+        val noFind = searchAndReplaceController.findNextFromDisk(testFile, "search", 141, pageSize, pageByteIndexes, SearchDirection.DOWN, SearchTextMode.NORMAL, false)
+        assertNull(noFind)
+    }
+
+    @Test
     fun `find next disk pagination search term split by page`() {
         val pageSize = 10
         val pageByteIndexes = fileCalculationController.calcStartingByteIndexesAndLineCounts(testFilePageBreaks, pageSize) {}.pageStartingByteIndexes
