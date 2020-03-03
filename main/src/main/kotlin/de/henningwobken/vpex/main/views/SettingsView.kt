@@ -28,7 +28,6 @@ class SettingsView : View("VPEX - Einstellungen") {
 
     private val wrapProperty = SimpleBooleanProperty()
     private val schemaBasePathList = mutableListOf<String>()
-    private val openerBasePathProperty = SimpleStringProperty()
     private val prettyPrintIndentProperty = SimpleIntegerProperty()
     private val localeProperty = SimpleStringProperty()
     private val paginationProperty = SimpleBooleanProperty()
@@ -155,7 +154,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                                     action {
                                         val directoryChooser = DirectoryChooser()
                                         directoryChooser.title = "Schema Base Path"
-                                        directoryChooser.initialDirectory = File(openerBasePathProperty.get())
+                                        directoryChooser.initialDirectory = File(settingsController.getOpenerBasePath())
                                         val file = directoryChooser.showDialog(FX.primaryStage)
                                         if (file != null) {
                                             schemaBasePathList.add(file.absolutePath)
