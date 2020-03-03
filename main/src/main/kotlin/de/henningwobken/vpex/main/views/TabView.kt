@@ -1674,14 +1674,15 @@ class TabView : Fragment("File") {
                 vpexExecutor.execute {
                     try {
                         val find = searchAndReplaceController.findNextFromDisk(file, searchText, charOffset, pageSize, pageStartingByteIndexes,
-                                searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase) { progress ->
+                                searchDirection, textInterpreterMode.get() as SearchTextMode, ignoreCase,
+                                currentPageIndex = getPageIndex(), currentPageText = getFullText(), progressCallback = { progress ->
                             if (Thread.currentThread().isInterrupted) {
                                 throw InterruptedException("Cancelled")
                             }
                             Platform.runLater {
                                 fileProgressProperty.set(progress)
                             }
-                        }
+                        })
                         Platform.runLater {
                             fileProgressProperty.set(-1.0)
                             afterSearchResult(find)

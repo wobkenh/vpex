@@ -67,7 +67,10 @@ class SearchAndReplaceController : Controller() {
                          searchDirection: SearchDirection = SearchDirection.DOWN,
                          searchTextMode: SearchTextMode = SearchTextMode.NORMAL,
                          ignoreCase: Boolean = false,
-                         progressCallback: ((Double) -> Unit)? = null): Find? {
+                         currentPageIndex: Int? = null,
+                         currentPageText: String? = null,
+                         progressCallback: ((Double) -> Unit)? = null
+    ): Find? {
         // We can't load full text into memory
         // therefore, we have to go page by page
         // this means that page breaks might hide/split search results
@@ -89,25 +92,30 @@ class SearchAndReplaceController : Controller() {
             if (pageIndex >= pageStartingByteIndexes.size) {
                 break
             }
-            val startByteIndex = pageStartingByteIndexes[pageIndex]
-            if (progressCallback != null) {
-                progressCallback(startByteIndex / totalLength.toDouble())
-            }
-            accessFile.seek(startByteIndex)
-
-            // Calc how many bytes to read
-            val endByteIndex = if (pageIndex + 1 >= pageStartingByteIndexes.size) {
-                totalLength
+            val string = if (currentPageText != null && pageIndex == currentPageIndex) {
+                currentPageText
             } else {
-                pageStartingByteIndexes[pageIndex + 1]
-            }
-            val pageByteSize = (endByteIndex - startByteIndex).toInt()
+                val startByteIndex = pageStartingByteIndexes[pageIndex]
+                if (progressCallback != null) {
+                    progressCallback(startByteIndex / totalLength.toDouble())
+                }
+                accessFile.seek(startByteIndex)
 
-            val read = accessFile.read(buffer, 0, pageByteSize + pageOverlap)
-            if (read == -1) {
-                break
+                // Calc how many bytes to read
+                val endByteIndex = if (pageIndex + 1 >= pageStartingByteIndexes.size) {
+                    totalLength
+                } else {
+                    pageStartingByteIndexes[pageIndex + 1]
+                }
+                val pageByteSize = (endByteIndex - startByteIndex).toInt()
+
+                val read = accessFile.read(buffer, 0, pageByteSize + pageOverlap)
+                if (read == -1) {
+                    break
+                }
+                String(buffer, 0, read)
             }
-            val string = String(buffer, 0, read)
+
 
             val pageCharOffset = pageIndex * pageSize.toLong()
             val offset = if (pageCharOffset < charOffset) {
