@@ -6,7 +6,7 @@ import tornadofx.*
 import java.util.regex.Pattern
 
 
-class XmlHighlightController : Controller() {
+class XmlSyntaxHighlightingController : Controller() {
 
     private val XML_TAG = Pattern.compile("(?<ELEMENT>(</?\\h*)(\\w+)([^<>]*)(\\h*/?>))"
             + "|(?<COMMENT><!--[^<>]+-->)")
