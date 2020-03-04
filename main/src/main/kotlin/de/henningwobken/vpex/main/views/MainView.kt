@@ -197,8 +197,12 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             tabPane = this
             stylesheets.add(internalResourceController.getAsResource(InternalResource.TABPANE_CSS))
             selectionModel.selectedItemProperty().addListener(ChangeListener { observable, oldValue, newValue ->
+                logger.debug { "----------" }
+                logger.debug { "Old Tab: $oldValue" }
+                logger.debug { "New Tab: $newValue" }
+                logger.debug { "----------" }
                 if (newValue != null) {
-                    logger.info { "Tab Selection changed to file ${newValue.text}" }
+                    logger.info { "Tab Selection changed to tab $newValue" }
                     statusBarView.bind(tabController.getTabView(newValue))
                     Platform.runLater {
                         // Without runLater, the focus does not work
@@ -228,10 +232,16 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             tabs.addListener { c: ListChangeListener.Change<out Tab?> ->
                 while (c.next()) {
                     if (c.wasAdded()) {
-                        c.addedSubList.forEach { tab: Tab? -> addDragHandlers(tab) }
+                        c.addedSubList.forEach { tab: Tab? ->
+                            logger.debug { "Added drag handler for $tab" }
+                            addDragHandlers(tab)
+                        }
                     }
                     if (c.wasRemoved()) {
-                        c.removed.forEach { tab: Tab? -> removeDragHandlers(tab) }
+                        c.removed.forEach { tab: Tab? ->
+                            logger.debug { "Removed drag handler for $tab" }
+                            removeDragHandlers(tab)
+                        }
                     }
                 }
             }
@@ -346,32 +356,37 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
             tabController.getTabView(file)
         } else null
         if (tabView != null) {
+            logger.debug { "Selecting tabview for ${tabView.getFile()?.absolutePath ?: ""}" }
             tabPane.selectionModel.select(tabController.getTab(tabView))
         } else {
             val tab = Tab()
             tab.text = if (file != null) {
                 // If the current tab is a temporary "new"-tab that has not been edited, replace it
                 val selectedTab = tabPane.selectionModel.selectedItem
-                val selectedTabView = tabController.getTabView(selectedTab)
-                // TODO: Fix isDirty to return to false if original content is restored
-                if (!selectedTabView.isDirty.get() && !selectedTabView.hasFile.get()) {
-                    requestCloseTab(selectedTab)
+                if (selectedTab != null) {
+                    val selectedTabView = tabController.getTabView(selectedTab)
+                    // TODO: Fix isDirty to return to false if original content is restored
+                    if (!selectedTabView.isDirty.get() && !selectedTabView.hasFile.get()) {
+                        requestCloseTab(selectedTab)
+                    }
                 }
                 file.name
             } else {
                 newCounter++
                 "New $newCounter"
             }
-            logger.debug { "Creating tab ${tab.text}" }
+            logger.debug { "Creating tab $tab" }
             tab.setOnCloseRequest {
-                logger.debug { tabPane.tabs }
-                logger.debug { "Request to close tab ${tab.text}" }
-                requestCloseTab(tab)
-                it.consume()
-            }
-            tab.setOnClosed {
-                logger.debug { "Closing tab ${tab.text}" }
-                tabController.closeTab(tab)
+                logger.debug { "Request to close tab $tab" }
+                var callbackWasCalled = false
+                tabController.requestCloseTab(tab) {
+                    logger.debug { "Removing tab $tab from tabPane by X-Button" }
+                    tabController.closeTab(tab)
+                    callbackWasCalled = true
+                }
+                if (!callbackWasCalled) {
+                    it.consume()
+                }
             }
             val view = find(TabView::class)
             if (file != null) {
@@ -432,7 +447,10 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
 
     private fun requestCloseTab(tab: Tab) {
         tabController.requestCloseTab(tab) {
+            logger.debug { "Removing tab $tab from tabPane" }
             tabPane.tabs.remove(tab)
+            logger.debug { "Removed tab $tab from tabPane" }
+            tabController.closeTab(tab)
         }
     }
 

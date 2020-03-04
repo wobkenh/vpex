@@ -27,20 +27,22 @@ class TabController : Controller() {
     }
 
     fun closeTab(tab: Tab) {
-        logger.debug { "Closing Tab @ TabController" }
+        logger.debug { "Closing Tab $tab @ TabController" }
         val tabView = getTabView(tab)
         synchronized(lock) {
             tabs.remove(tab)
+            logger.debug { "Removed Tab $tab @ TabController" }
         }
         tabView.closeTab()
+        logger.debug { "Closed $tab @ TabController" }
     }
 
     fun requestCloseTab(tab: Tab, callback: () -> Unit) {
-        logger.debug { "Requesting to close Tab @ TabController" }
+        logger.debug { "Requesting to close Tab $tab @ TabController" }
         val tabView = getTabView(tab)
         tabView.requestCloseTab {
             synchronized(lock) {
-                logger.debug { "Callback @ TabController" }
+                logger.debug { "Callback for tab $tab @ TabController" }
                 callback()
             }
         }
@@ -48,7 +50,7 @@ class TabController : Controller() {
 
     fun getTabView(tab: Tab): TabView {
         synchronized(lock) {
-            logger.debug { "Getting Tab " + tab.text }
+            logger.debug { "Getting Tab $tab" }
             return tabs[tab]!!
         }
     }

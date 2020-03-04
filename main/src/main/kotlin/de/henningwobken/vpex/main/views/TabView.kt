@@ -12,6 +12,7 @@ import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
 import javafx.scene.control.TextArea
 import javafx.scene.control.TextInputDialog
+import javafx.scene.input.Clipboard
 import javafx.scene.input.KeyCode
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
@@ -671,6 +672,7 @@ class TabView : Fragment("File") {
         if (oldFile != null) {
             fileWatcher.stopWatching(oldFile)
         }
+        logger.debug { "Closed Tab @ TabView" }
     }
 
     /**
@@ -1397,6 +1399,46 @@ class TabView : Fragment("File") {
                 } else 0
             } else 0
         }
+        codeArea.contextMenu = contextmenu {
+            val hasClipboardContent = SimpleBooleanProperty(false)
+            item("Cut") {
+                disableWhen { selectionLength.eq(0) }
+            }.action {
+                Clipboard.getSystemClipboard().putString(codeArea.selectedText)
+                val text = codeArea.text
+                replaceText(text.substring(0, codeArea.selection.start) + text.substring(codeArea.selection.end))
+            }
+            item("Copy") {
+                disableWhen { selectionLength.eq(0) }
+            }.action {
+                Clipboard.getSystemClipboard().putString(codeArea.selectedText)
+            }
+            item("Paste") { disableWhen { hasClipboardContent.not() } }.action {
+                val clipboard = Clipboard.getSystemClipboard()
+                val additionalText = when {
+                    clipboard.hasString() -> clipboard.string
+                    clipboard.hasFiles() -> {
+                        var text = ""
+                        for (file in clipboard.files) {
+                            if (text.isNotEmpty()) {
+                                text += System.lineSeparator()
+                            }
+                            text += file.absolutePath
+                        }
+                        text
+                    }
+                    clipboard.hasUrl() -> clipboard.url
+                    else -> ""
+                }
+                val caretIndex = codeArea.caretPosition
+                val text = codeArea.text
+                replaceText(text.substring(0, caretIndex) + additionalText + text.substring(caretIndex))
+            }
+            setOnShowing {
+                val clipboard = Clipboard.getSystemClipboard()
+                hasClipboardContent.set(clipboard.hasString() || clipboard.hasUrl() || clipboard.hasFiles())
+            }
+        }
 
         return codeArea
     }
@@ -1412,7 +1454,7 @@ class TabView : Fragment("File") {
     }
 
 
-    // Search and replace functions
+// Search and replace functions
 
     private fun removeFindHighlighting() {
         if (codeArea.length > 0) {
