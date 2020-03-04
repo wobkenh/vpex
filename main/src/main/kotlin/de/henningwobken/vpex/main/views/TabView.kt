@@ -60,6 +60,7 @@ class TabView : Fragment("File") {
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
 
     private lateinit var findTextField: TextArea
+    private lateinit var replaceTextField: TextArea
 
     private var isAskingForFileReload = false
 
@@ -141,6 +142,11 @@ class TabView : Fragment("File") {
                                         } else {
                                             findNext()
                                         }
+                                    } else if (it.code == KeyCode.TAB) {
+                                        it.consume()
+                                        if (showReplaceProperty.get()) {
+                                            replaceTextField.requestFocus()
+                                        }
                                     }
                                 }
                             }
@@ -150,6 +156,7 @@ class TabView : Fragment("File") {
                             removeWhen(showReplaceProperty.not())
                             textarea(replaceProperty) {
                                 id = "replaceField"
+                                replaceTextField = this
                                 isWrapText = false
                                 prefHeight = 27.0
                                 maxHeight = 27.0
@@ -168,6 +175,9 @@ class TabView : Fragment("File") {
                                         } else {
                                             // TODO: What to do here? Find next? Replace this?
                                         }
+                                    } else if (it.code == KeyCode.TAB) {
+                                        it.consume()
+                                        findTextField.requestFocus()
                                     }
                                 }
                             }
