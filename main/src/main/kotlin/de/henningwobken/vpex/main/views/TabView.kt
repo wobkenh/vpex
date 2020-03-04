@@ -259,7 +259,7 @@ class TabView : Fragment("File") {
                                 }.action {
                                     resetFinds()
                                     statusTextProperty.set("Replacing. (0 so far)")
-                                    replaceAll({
+                                    replaceAll(callback = {
                                         Platform.runLater {
                                             statusTextProperty.set("Replacing. (${allFinds.size} so far)")
                                         }
@@ -1519,7 +1519,7 @@ class TabView : Fragment("File") {
 
     }
 
-    private fun replaceAll(callback: () -> Unit, endCallback: (() -> Unit)? = null) {
+    private fun replaceAll(callback: () -> Unit, endCallback: () -> Unit) {
         val replacementText = this.replaceProperty.get()
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
             // We need to read the original file page by page,
@@ -1530,40 +1530,41 @@ class TabView : Fragment("File") {
             // So let the user chose a new one
             val outputFile = choseFile()
             if (outputFile != null && (outputFile.isFile || !outputFile.exists())) {
-                FileWriter(outputFile).use { writer ->
-                    // End Callback will be executed async in a non-ui-thread
-                    this.searchAll({ unsortedFinds, text, charIndex ->
-                        // One Page has been searched. Write that page to file with replacements
-                        val finds = unsortedFinds.sortedBy { it.start }
-                        // Indexes can be Int since they refer to indexes withing a single page
-                        var startIndex = 0
-                        var endIndex: Int
-                        for (find in finds) {
-                            // find index refers to whole file
-                            // char index shows offset of this page in the whole file
-                            endIndex = (find.start - charIndex).toInt()
-                            // Write all Text before this find followed by the replacement
-                            writer.write(text, startIndex, endIndex - startIndex)
-                            writer.write(replacementText)
-                            startIndex = (find.end - charIndex).toInt()
-                        }
-                        // Whats left of the page
-                        endIndex = text.length
+                val writer = FileWriter(outputFile)
+                // SearchAll End Callback will be executed async in a non-ui-thread
+                this.searchAll({ unsortedFinds, text, charIndex ->
+                    // One Page has been searched. Write that page to file with replacements
+                    val finds = unsortedFinds.sortedBy { it.start }
+                    // Indexes can be Int since they refer to indexes withing a single page
+                    var startIndex = 0
+                    var endIndex: Int
+                    for (find in finds) {
+                        // find index refers to whole file
+                        // char index shows offset of this page in the whole file
+                        endIndex = (find.start - charIndex).toInt()
+                        // Write all Text before this find followed by the replacement
                         writer.write(text, startIndex, endIndex - startIndex)
-                    }, endCallback = endCallback)
-                }
+                        writer.write(replacementText)
+                        startIndex = (find.end - charIndex).toInt()
+                    }
+                    // Whats left of the page
+                    endIndex = text.length
+                    writer.write(text, startIndex, endIndex - startIndex)
+                    callback()
+                }, endCallback = {
+                    writer.close()
+                    endCallback()
+                })
             } else {
                 logger.info { "User did not chose a valid file - aborting" }
-                if (endCallback != null) {
-                    endCallback()
-                }
+                endCallback()
             }
 
         } else {
             val stringBuilder = StringBuilder()
             var lastEndIndex = 0
 
-            // Callback will be executed once with all findings async in a non-ui-thread
+            // SearchAll Callback will be executed once with all findings async in a non-ui-thread
             this.searchAll({ finds, fulltext, _ ->
                 logger.debug("Replacing {} findings", finds.size)
                 for (find in finds) {
