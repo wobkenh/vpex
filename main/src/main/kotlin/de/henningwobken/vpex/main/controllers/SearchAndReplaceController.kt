@@ -14,6 +14,12 @@ class SearchAndReplaceController : Controller() {
     private val regexPatternMap = mutableMapOf<String, Pattern>()
 
 
+    fun isInPage(find: Find, pageIndex: Int, pageSize: Int): Boolean {
+        val lowerBound = pageIndex * pageSize
+        val upperBound = (pageIndex + 1) * pageSize
+        return find.end in lowerBound until upperBound || find.start in lowerBound until upperBound
+    }
+
     /**
      * Finds all of the occurences of searchText in the fullText
      *

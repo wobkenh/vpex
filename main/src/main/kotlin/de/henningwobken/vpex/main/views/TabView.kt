@@ -48,6 +48,7 @@ class TabView : Fragment("File") {
     private val fileCalculationController: FileCalculationController by inject()
     private val fileWatcher: FileWatcher by inject()
     private val xmlSyntaxHighlightingController: XmlSyntaxHighlightingController by inject()
+    private val highlightingExcutor: HighlightingExecutor by inject()
 
     val isDirty: BooleanProperty = SimpleBooleanProperty(false)
     val saveLockProperty = SimpleBooleanProperty(false)
@@ -235,7 +236,7 @@ class TabView : Fragment("File") {
                                     var hasSelectedFind = false
                                     searchAll({ finds, _, _ ->
                                         Platform.runLater {
-                                            highlightFinds(finds)
+                                            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), getPageIndex(), showFindProperty.get())
                                             if (!hasSelectedFind && finds.isNotEmpty()) {
                                                 hasSelectedFind = true
                                                 currentAllFindsIndex.set(0)
@@ -880,9 +881,9 @@ class TabView : Fragment("File") {
     }
 
     private fun closeSearchAndReplace() {
-        this.removeFindHighlighting()
         showReplaceProperty.set(false)
         showFindProperty.set(false)
+        this.highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), this.getPageIndex(), showFindProperty.get())
     }
 
     private fun replaceText(text: String) {
@@ -1097,7 +1098,7 @@ class TabView : Fragment("File") {
                     mainView.isDirty.set(false) // Changes were either saved or discarded
                     replaceText(text)
                     mainView.page.set(page)
-                    highlightFinds(allFinds)
+                    highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), page - 1, showFindProperty.get())
                     if (callback != null) {
                         callback()
                     }
@@ -1117,7 +1118,7 @@ class TabView : Fragment("File") {
             }
             this.page.set(page)
             replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
-            highlightFinds(allFinds)
+            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), 0, showFindProperty.get())
             if (callback != null) {
                 callback()
             }
@@ -1168,7 +1169,7 @@ class TabView : Fragment("File") {
                 val findStart = codeArea.anchor
                 val findLength = find.end - find.start
                 val findEnd = codeArea.anchor + findLength.toInt()
-                if (isInPage(lastFind)) {
+                if (searchAndReplaceController.isInPage(lastFind, this.getPageIndex(), this.settingsController.getSettings().pageSize)) {
                     val lastFindWasInAllFinds = allFinds.find { it == lastFind } != null
                     if (lastFindWasInAllFinds) {
                         // Need to reapply old styling
@@ -1366,20 +1367,19 @@ class TabView : Fragment("File") {
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
                 }
             }
-            if (settingsController.getSettings().syntaxHighlighting) {
-                codeArea.setStyleSpans(0, xmlSyntaxHighlightingController.computeHighlighting(codeArea.text))
-            }
-            if (this.hasFindProperty.get()) {
-                // The edit has invalidated the search result => Remove Highlight
-                if (this.codeArea.text.length >= this.lastFindStart &&
-                        !this.codeArea.text.substring(
-                                this.lastFindStart,
-                                min(this.lastFindEnd, this.codeArea.text.length)
-                        ).startsWith(this.findProperty.get())) {
-                    logger.info("Removed Highlighting because search result was invalidated through editing")
-                    removeFindHighlighting()
-                }
-            }
+            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, it.position, displayMode.get(), this.getPageIndex(), showFindProperty.get())
+            // TODO: Remove when highlighting works
+//            if (this.hasFindProperty.get()) {
+//                // The edit has invalidated the search result => Remove Highlight
+//                if (this.codeArea.text.length >= this.lastFindStart &&
+//                        !this.codeArea.text.substring(
+//                                this.lastFindStart,
+//                                min(this.lastFindEnd, this.codeArea.text.length)
+//                        ).startsWith(this.findProperty.get())) {
+//                    logger.info("Removed Highlighting because search result was invalidated through editing")
+//                    removeFindHighlighting()
+//                }
+//            }
         }
         this.codeArea = codeArea
         this.codeArea.setOnKeyPressed {
@@ -1456,22 +1456,23 @@ class TabView : Fragment("File") {
 
     // Search and replace functions
 
-    private fun removeFindHighlighting() {
-        if (codeArea.length > 0) {
-            if (settingsController.getSettings().syntaxHighlighting) {
-                codeArea.setStyleSpans(0, xmlSyntaxHighlightingController.computeHighlighting(codeArea.text))
-            } else {
-                this.codeArea.clearStyle(0, codeArea.length - 1)
-            }
-            if (allFinds.isNotEmpty()) {
-                highlightFinds(allFinds)
-            }
-        }
-        this.hasFindProperty.set(false)
-        this.lastFindStart = 0
-        this.lastFindEnd = 0
-        this.lastFind = Find(0L, 0L)
-    }
+    // TODO: Remove when syntax highlighting works
+    //    private fun removeFindHighlighting() {
+    //        if (codeArea.length > 0) {
+    //            if (settingsController.getSettings().syntaxHighlighting) {
+    //                codeArea.setStyleSpans(0, xmlSyntaxHighlightingController.computeHighlighting(codeArea.text))
+    //            } else {
+    //                this.codeArea.clearStyle(0, codeArea.length - 1)
+    //            }
+    //            if (allFinds.isNotEmpty()) {
+    //                highlightFinds(allFinds)
+    //            }
+    //        }
+    //        this.hasFindProperty.set(false)
+    //        this.lastFindStart = 0
+    //        this.lastFindEnd = 0
+    //        this.lastFind = Find(0L, 0L)
+    //    }
 
     /**
      * Searches through the whole text in search for the current search term.
@@ -1547,29 +1548,29 @@ class TabView : Fragment("File") {
         }
     }
 
-    private fun highlightFinds(finds: List<Find>) {
-        if (finds.isEmpty()) {
-            return
-        }
-        val localFinds = finds.toList()
-        this.hasFindProperty.set(true)
-        val pageSize = this.settingsController.getSettings().pageSize
-        if (displayMode.get() == DisplayMode.PLAIN) {
-            for (find in localFinds) {
-                codeArea.setStyle(find.start.toInt(), find.end.toInt(), listOf("searchAllHighlight"))
-            }
-        } else {
-            val pageOffset = this.getPageIndex() * pageSize.toLong()
-            for (find in localFinds) {
-                if (isInPage(find)) {
-                    val start = max(find.start - pageOffset, 0).toInt()
-                    val end = min(find.end - pageOffset, pageSize.toLong() - 1).toInt()
-                    codeArea.setStyle(start, end, listOf("searchAllHighlight"))
-                }
-            }
-        }
-
-    }
+    //    private fun highlightFinds(finds: List<Find>) {
+    //        if (finds.isEmpty()) {
+    //            return
+    //        }
+    //        val localFinds = finds.toList()
+    //        this.hasFindProperty.set(true)
+    //        val pageSize = this.settingsController.getSettings().pageSize
+    //        if (displayMode.get() == DisplayMode.PLAIN) {
+    //            for (find in localFinds) {
+    //                codeArea.setStyle(find.start.toInt(), find.end.toInt(), listOf("searchAllHighlight"))
+    //            }
+    //        } else {
+    //            val pageOffset = this.getPageIndex() * pageSize.toLong()
+    //            for (find in localFinds) {
+    //                if (isInPage(find)) {
+    //                    val start = max(find.start - pageOffset, 0).toInt()
+    //                    val end = min(find.end - pageOffset, pageSize.toLong() - 1).toInt()
+    //                    codeArea.setStyle(start, end, listOf("searchAllHighlight"))
+    //                }
+    //            }
+    //        }
+    //
+    //    }
 
     private fun replaceAll(callback: () -> Unit, endCallback: () -> Unit) {
         val replacementText = this.replaceProperty.get()
@@ -1636,13 +1637,6 @@ class TabView : Fragment("File") {
                 }
             }, endCallback = endCallback)
         }
-    }
-
-    private fun isInPage(find: Find): Boolean {
-        val pageSize = this.settingsController.getSettings().pageSize.toLong()
-        val lowerBound = this.getPageIndex() * pageSize
-        val upperBound = this.page.get() * pageSize
-        return find.end in lowerBound until upperBound || find.start in lowerBound until upperBound
     }
 
     private fun findNext() {
