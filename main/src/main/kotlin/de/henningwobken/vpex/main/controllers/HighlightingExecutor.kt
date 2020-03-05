@@ -7,7 +7,7 @@ import tornadofx.*
 import kotlin.math.max
 import kotlin.math.min
 
-public class HighlightingExecutor : Controller() {
+class HighlightingExecutor : Controller() {
 
     private val xmlSyntaxHighlightingController by inject<XmlSyntaxHighlightingController>()
     private val settingsController by inject<SettingsController>()
