@@ -434,7 +434,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
                             && e.exception.columnNumber == exception.exception.columnNumber
                             && e.severity == exception.severity
                 }
-                if (existingException != null) {
+                if (existingException != null && !existingException.message.get().contains(exception.message.get())) {
                     existingException.message += System.lineSeparator() + exception.message.get()
                 } else {
                     exceptions.add(exception)
