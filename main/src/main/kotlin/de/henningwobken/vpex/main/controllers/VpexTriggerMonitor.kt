@@ -47,10 +47,15 @@ class VpexTriggerMonitor : Controller() {
                         ?.filter { it.name.startsWith("vpex.receive") }
                         ?.forEach { receiveFile ->
                             if (receiveFile.exists() && receiveFile.isFile) {
-                                val path = Files.readAllLines(receiveFile.toPath()).first().trim('\"', '\r', '\n', ' ')
-                                Files.delete(receiveFile.toPath())
-                                logger.info("Triggered by receive file. Opening path '$path'")
-                                onFilepathReceived(path)
+                                try {
+                                    val path = Files.readAllLines(receiveFile.toPath()).first().trim('\"', '\r', '\n', ' ')
+                                    Files.delete(receiveFile.toPath())
+                                    logger.info("Triggered by receive file. Opening path '$path'")
+                                    onFilepathReceived(path)
+                                } catch (e: Exception) {
+                                    logger.error("Could not parse vpex.receive file at ${receiveFile.absolutePath}", e)
+                                    receiveFile.delete()
+                                }
                             }
                         }
 
