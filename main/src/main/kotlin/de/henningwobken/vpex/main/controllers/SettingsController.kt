@@ -31,7 +31,7 @@ class SettingsController : Controller() {
     }
 
     fun getOpenerBasePath(): String {
-        return this.openerBasePath;
+        return this.openerBasePath
     }
 
     fun setOpenerBasePath(openerBasePath: String) {
@@ -124,7 +124,7 @@ class SettingsController : Controller() {
             properties.load(configFile.inputStream())
             try {
                 Settings(
-                        properties.getProperty("schemaBasePath", "./").split(","),
+                        parseSchemaBasePath(properties),
                         properties.getProperty("wrapText", "true") == "true",
                         properties.getProperty("prettyPrintIndent", "4").toInt(),
                         Locale.forLanguageTag(properties.getProperty("locale", "en")),
@@ -164,10 +164,16 @@ class SettingsController : Controller() {
         return settings
     }
 
+    private fun parseSchemaBasePath(properties: Properties): List<String> {
+        return properties.getProperty("schemaBasePath", "./")
+                .split(",")
+                .filter { it.isNotEmpty() }
+    }
+
     private fun applySettings(settings: Settings) {
         if (settings.trustStore.isNotEmpty()) {
-            System.setProperty("javax.net.ssl.trustStore", settings.trustStore);
-            System.setProperty("javax.net.ssl.trustStorePassword", settings.trustStorePassword);
+            System.setProperty("javax.net.ssl.trustStore", settings.trustStore)
+            System.setProperty("javax.net.ssl.trustStorePassword", settings.trustStorePassword)
         }
         if (settings.insecure) {
             disableSSLSecurity()

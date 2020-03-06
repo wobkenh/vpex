@@ -1,6 +1,7 @@
 package de.henningwobken.vpex.main.xml
 
 import com.sun.org.apache.xerces.internal.dom.DOMInputImpl
+import de.henningwobken.vpex.main.controllers.SettingsController
 import de.henningwobken.vpex.main.views.SchemaChooserFragment
 import javafx.application.Platform
 import javafx.scene.control.Alert
@@ -16,9 +17,10 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 
 
-class ResourceResolver(private val basePathList: List<String>) : LSResourceResolver {
+class ResourceResolver(private val settingsController: SettingsController) : LSResourceResolver {
 
     private val logger = KotlinLogging.logger {}
+    private val basePathList = settingsController.getSettings().schemaBasePathList
 
     init {
         logger.debug { "Initializing Schema File Resource Resolver" }
@@ -65,13 +67,13 @@ class ResourceResolver(private val basePathList: List<String>) : LSResourceResol
                             }.filter { !foundPaths.contains(it.absolutePath) }) // Prevent duplicates
                         }
                     }
-                    when {
-                        files.size == 0 -> {
+                    when (files.size) {
+                        0 -> {
                             alertFileMissing(type, namespaceURI, publicId, systemId, baseURI)
                             val chosenFile = chooseFile(systemId)
                             chosenFile
                         }
-                        files.size == 1 -> files[0]
+                        1 -> files[0]
                         else -> {
                             val chosenFile = chooseFile(SchemaDescriptor(type, namespaceURI, publicId, systemId, baseURI), files)
                             chosenFile
@@ -113,7 +115,12 @@ class ResourceResolver(private val basePathList: List<String>) : LSResourceResol
         Platform.runLater {
             val fileChooser = FileChooser()
             fileChooser.title = "Choose Schema file $systemId"
-            fileChooser.initialDirectory = File(basePathList[0]).absoluteFile
+            val initialDirectory = if (basePathList.isEmpty()) {
+                settingsController.getOpenerBasePath()
+            } else {
+                basePathList[0]
+            }
+            fileChooser.initialDirectory = File(initialDirectory).absoluteFile
             file = fileChooser.showOpenDialog(FX.primaryStage) ?: throw RuntimeException("No file chosen. Abort.")
             isDone = true
         }

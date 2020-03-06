@@ -130,6 +130,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                 fieldset("Files") {
                     field("Schema Root Locations") {
                         vbox {
+                            label("VPEX will search these directories when looking for schema (xsd) files:")
                             val basePathBox = vbox {}
                             val addBasePathChild = { basePath: String ->
                                 basePathBox.children.add(hbox(10) {

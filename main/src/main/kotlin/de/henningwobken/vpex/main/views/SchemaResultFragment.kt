@@ -60,7 +60,7 @@ class SchemaResultFragment : Fragment("Schema Validation Result") {
     }
 
     private val schema = getSchema()
-    private val schemaResolver = ResourceResolver(settingsController.getSettings().schemaBasePathList)
+    private val schemaResolver = ResourceResolver(settingsController)
 
     private val progressProperty = SimpleDoubleProperty(0.0)
     private val workingProperty = SimpleBooleanProperty(true)
