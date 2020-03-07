@@ -61,7 +61,9 @@ class XmlSyntaxHighlightingController : Controller() {
                             spansBuilder.add(setOf("avalue"), amatcher.end(GROUP_ATTRIBUTE_VALUE) - amatcher.end(GROUP_EQUAL_SYMBOL))
                             lastKwEnd = amatcher.end()
                         }
-                        if (attributesText.length > lastKwEnd) spansBuilder.add(emptyList(), attributesText.length - lastKwEnd)
+                        if (attributesText.length > lastKwEnd) {
+                            spansBuilder.add(emptyList(), attributesText.length - lastKwEnd)
+                        }
                     }
                     lastKwEnd = matcher.end(GROUP_ATTRIBUTES_SECTION)
                     spansBuilder.add(setOf("tagmark"), matcher.end(GROUP_CLOSE_BRACKET) - lastKwEnd)
