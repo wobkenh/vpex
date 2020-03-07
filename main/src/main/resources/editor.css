@@ -23,6 +23,10 @@
     -fx-fill: crimson;
 }
 
+.anynamespace {
+    -fx-fill: #A6142F;
+}
+
 .paren {
     -fx-fill: firebrick;
     -fx-font-weight: bold;
@@ -30,6 +34,10 @@
 
 .attribute {
     -fx-fill: darkviolet;
+}
+
+.attributenamespace {
+    -fx-fill: #7800AF;
 }
 
 .avalue {

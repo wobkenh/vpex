@@ -8,16 +8,26 @@ import java.util.regex.Pattern
 
 class XmlSyntaxHighlightingController : Controller() {
 
-    private val XML_TAG = Pattern.compile("(?<ELEMENT>(</?\\h*)(\\w+)([^<>]*)(\\h*/?>))"
+    // h => horizontal whitespace
+    // w => any letters
+    private val XML_TAG = Pattern.compile("(?<ELEMENT>(<(/|\\?)?\\h*)(\\w+:)?(\\w+)([^<>\\?]*)(\\h*(/|\\?)?>))"
             + "|(?<COMMENT><!--[^<>]+-->)")
-    private val ATTRIBUTES = Pattern.compile("(\\w+\\h*)(=)(\\h*\"[^\"]+\")")
+    private val ATTRIBUTES = Pattern.compile("(\\w+:)?(\\w+\\h*)(=)(\\h*\"[^\"]+\")")
+
+    // Elements
     private val GROUP_OPEN_BRACKET = 2
-    private val GROUP_ELEMENT_NAME = 3
-    private val GROUP_ATTRIBUTES_SECTION = 4
-    private val GROUP_CLOSE_BRACKET = 5
-    private val GROUP_ATTRIBUTE_NAME = 1
-    private val GROUP_EQUAL_SYMBOL = 2
-    private val GROUP_ATTRIBUTE_VALUE = 3
+
+    // 3 is subgroup for "/" or "?" --> covered by GROUP_OPEN_BRACKET
+    private val GROUP_ELEMENT_NAMESPACE = 4
+    private val GROUP_ELEMENT_NAME = 5
+    private val GROUP_ATTRIBUTES_SECTION = 6
+    private val GROUP_CLOSE_BRACKET = 7
+
+    // Attributes
+    private val GROUP_ATTRIBUTE_NAMESPACE = 1
+    private val GROUP_ATTRIBUTE_NAME = 2
+    private val GROUP_EQUAL_SYMBOL = 3
+    private val GROUP_ATTRIBUTE_VALUE = 4
 
     fun computeHighlighting(text: String): StyleSpans<Collection<String>> {
         val matcher = XML_TAG.matcher(text)
@@ -31,12 +41,21 @@ class XmlSyntaxHighlightingController : Controller() {
                 if (matcher.group("ELEMENT") != null) {
                     val attributesText = matcher.group(GROUP_ATTRIBUTES_SECTION)
                     spansBuilder.add(setOf("tagmark"), matcher.end(GROUP_OPEN_BRACKET) - matcher.start(GROUP_OPEN_BRACKET))
-                    spansBuilder.add(setOf("anytag"), matcher.end(GROUP_ELEMENT_NAME) - matcher.end(GROUP_OPEN_BRACKET))
+                    if (matcher.end(GROUP_ELEMENT_NAMESPACE) >= 0) {
+                        spansBuilder.add(setOf("anynamespace"), matcher.end(GROUP_ELEMENT_NAMESPACE) - matcher.end(GROUP_OPEN_BRACKET))
+                        spansBuilder.add(setOf("anytag"), matcher.end(GROUP_ELEMENT_NAME) - matcher.end(GROUP_ELEMENT_NAMESPACE))
+                    } else {
+                        // No Namspace prefix
+                        spansBuilder.add(setOf("anytag"), matcher.end(GROUP_ELEMENT_NAME) - matcher.end(GROUP_OPEN_BRACKET))
+                    }
                     if (attributesText.isNotEmpty()) {
                         lastKwEnd = 0
                         val amatcher = ATTRIBUTES.matcher(attributesText)
                         while (amatcher.find()) {
                             spansBuilder.add(emptyList(), amatcher.start() - lastKwEnd)
+                            if (matcher.end(GROUP_ATTRIBUTE_NAMESPACE) >= 0) {
+                                spansBuilder.add(setOf("attributenamespace"), amatcher.end(GROUP_ATTRIBUTE_NAMESPACE) - amatcher.start(GROUP_ATTRIBUTE_NAMESPACE))
+                            }
                             spansBuilder.add(setOf("attribute"), amatcher.end(GROUP_ATTRIBUTE_NAME) - amatcher.start(GROUP_ATTRIBUTE_NAME))
                             spansBuilder.add(setOf("tagmark"), amatcher.end(GROUP_EQUAL_SYMBOL) - amatcher.end(GROUP_ATTRIBUTE_NAME))
                             spansBuilder.add(setOf("avalue"), amatcher.end(GROUP_ATTRIBUTE_VALUE) - amatcher.end(GROUP_EQUAL_SYMBOL))
