@@ -8,26 +8,33 @@ import java.util.regex.Pattern
 
 class XmlSyntaxHighlightingController : Controller() {
 
-    // h => horizontal whitespace
-    // w => any letters
-    private val XML_TAG = Pattern.compile("(?<ELEMENT>(<(/|\\?)?\\h*)(\\w+:)?(\\w+)([^<>\\?]*)(\\h*(/|\\?)?>))"
-            + "|(?<COMMENT><!--[^<>]+-->)")
-    private val ATTRIBUTES = Pattern.compile("(\\w+:)?(\\w+\\h*)(=)(\\h*\"[^\"]+\")")
+    companion object {
+        // h => horizontal whitespace
+        // w => any letters
+        private val XML_TAG = Pattern.compile(
+                "(?<ELEMENT>(<[/?]?\\h*)(\\w+:)?(\\w+)([^<>?]*)(\\h*[/?]?>))|(?<COMMENT><!--[^<>]+-->)|(?<CDATA>(<!\\[CDATA\\[)(.*)(]]>))",
+                Pattern.DOTALL
+        )
+        private val ATTRIBUTES = Pattern.compile("(\\w+:)?(\\w+\\h*)(=)(\\h*\"[^\"]+\")")
 
-    // Elements
-    private val GROUP_OPEN_BRACKET = 2
+        // Elements
+        private const val GROUP_OPEN_BRACKET = 2
+        private const val GROUP_ELEMENT_NAMESPACE = 3
+        private const val GROUP_ELEMENT_NAME = 4
+        private const val GROUP_ATTRIBUTES_SECTION = 5
+        private const val GROUP_CLOSE_BRACKET = 6
 
-    // 3 is subgroup for "/" or "?" --> covered by GROUP_OPEN_BRACKET
-    private val GROUP_ELEMENT_NAMESPACE = 4
-    private val GROUP_ELEMENT_NAME = 5
-    private val GROUP_ATTRIBUTES_SECTION = 6
-    private val GROUP_CLOSE_BRACKET = 7
+        // Attributes
+        private const val GROUP_ATTRIBUTE_NAMESPACE = 1
+        private const val GROUP_ATTRIBUTE_NAME = 2
+        private const val GROUP_EQUAL_SYMBOL = 3
+        private const val GROUP_ATTRIBUTE_VALUE = 4
 
-    // Attributes
-    private val GROUP_ATTRIBUTE_NAMESPACE = 1
-    private val GROUP_ATTRIBUTE_NAME = 2
-    private val GROUP_EQUAL_SYMBOL = 3
-    private val GROUP_ATTRIBUTE_VALUE = 4
+        // CDATA
+        private const val GROUP_CDATA_OPENING_TAG = 9
+        private const val GROUP_CDATA_DATA = 10
+        private const val GROUP_CDATA_CLOSING_TAG = 11
+    }
 
     fun computeHighlighting(text: String): StyleSpans<Collection<String>> {
         val matcher = XML_TAG.matcher(text)
@@ -35,10 +42,16 @@ class XmlSyntaxHighlightingController : Controller() {
         val spansBuilder = StyleSpansBuilder<Collection<String>>()
         while (matcher.find()) {
             spansBuilder.add(emptyList(), matcher.start() - lastKwEnd)
-            if (matcher.group("COMMENT") != null) {
-                spansBuilder.add(setOf("comment"), matcher.end() - matcher.start())
-            } else {
-                if (matcher.group("ELEMENT") != null) {
+            when {
+                matcher.group("COMMENT") != null -> {
+                    spansBuilder.add(setOf("comment"), matcher.end() - matcher.start())
+                }
+                matcher.group("CDATA") != null -> {
+                    spansBuilder.add(setOf("cdatatag"), matcher.end(GROUP_CDATA_OPENING_TAG) - matcher.start(GROUP_CDATA_OPENING_TAG))
+                    spansBuilder.add(setOf("cdatadata"), matcher.end(GROUP_CDATA_DATA) - matcher.start(GROUP_CDATA_DATA))
+                    spansBuilder.add(setOf("cdatatag"), matcher.end(GROUP_CDATA_CLOSING_TAG) - matcher.start(GROUP_CDATA_CLOSING_TAG))
+                }
+                matcher.group("ELEMENT") != null -> {
                     val attributesText = matcher.group(GROUP_ATTRIBUTES_SECTION)
                     spansBuilder.add(setOf("tagmark"), matcher.end(GROUP_OPEN_BRACKET) - matcher.start(GROUP_OPEN_BRACKET))
                     if (matcher.end(GROUP_ELEMENT_NAMESPACE) >= 0) {
@@ -69,6 +82,7 @@ class XmlSyntaxHighlightingController : Controller() {
                     spansBuilder.add(setOf("tagmark"), matcher.end(GROUP_CLOSE_BRACKET) - lastKwEnd)
                 }
             }
+
             lastKwEnd = matcher.end()
         }
         spansBuilder.add(emptyList(), text.length - lastKwEnd)

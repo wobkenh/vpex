@@ -25,3 +25,11 @@
 .comment {
     -fx-fill: #008000;
 }
+
+.cdatadata {
+    -fx-fill: #FF8000;
+}
+
+.cdatatag {
+    -fx-fill: #FF8000;
+}
