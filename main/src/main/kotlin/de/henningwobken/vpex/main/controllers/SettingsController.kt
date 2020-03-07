@@ -1,6 +1,7 @@
 package de.henningwobken.vpex.main.controllers
 
 import de.henningwobken.vpex.main.model.Settings
+import de.henningwobken.vpex.main.model.SyntaxHighlightingColorScheme
 import de.henningwobken.vpex.main.model.VpexConstants
 import javafx.beans.property.SimpleObjectProperty
 import javafx.scene.control.Alert
@@ -104,6 +105,7 @@ class SettingsController : Controller() {
         properties.setProperty("insecure", settings.insecure.toString())
         properties.setProperty("contextMenu", settings.contextMenu.toString())
         properties.setProperty("syntaxHighlighting", settings.syntaxHighlighting.toString())
+        properties.setProperty("syntaxHighlightingColorScheme", settings.syntaxHighlightingColorScheme.name)
         properties.setProperty("startMenu", settings.startMenu.toString())
         properties.setProperty("desktopIcon", settings.desktopIcon.toString())
         properties.setProperty("ignoreAutoUpdateError", settings.ignoreAutoUpdateError.toString())
@@ -143,6 +145,7 @@ class SettingsController : Controller() {
                         properties.getProperty("insecure", "false") == "true",
                         properties.getProperty("contextMenu", VpexConstants.isWindows.toString()) == "true",
                         properties.getProperty("syntaxHighlighting", "false") == "true",
+                        SyntaxHighlightingColorScheme.valueOf(properties.getProperty("syntaxHighlightingColorScheme", SyntaxHighlightingColorScheme.DEFAULT.name)),
                         properties.getProperty("startMenu", VpexConstants.isWindows.toString()) == "true",
                         properties.getProperty("desktopIcon", VpexConstants.isWindows.toString()) == "true",
                         properties.getProperty("ignoreAutoUpdateError", "false") == "true"
@@ -219,6 +222,7 @@ class SettingsController : Controller() {
                     insecure = false,
                     contextMenu = VpexConstants.isWindows,
                     syntaxHighlighting = false,
+                    syntaxHighlightingColorScheme = SyntaxHighlightingColorScheme.DEFAULT,
                     startMenu = VpexConstants.isWindows,
                     desktopIcon = VpexConstants.isWindows,
                     ignoreAutoUpdateError = false

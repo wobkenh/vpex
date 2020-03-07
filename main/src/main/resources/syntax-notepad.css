@@ -1,0 +1,32 @@
+.tagmark {
+    -fx-fill: #0000FF;
+}
+
+.anytag {
+    -fx-fill: #0000FF;
+}
+
+.anynamespace {
+    -fx-fill: #0000FF;
+}
+
+.paren {
+    -fx-fill: #008000;
+    -fx-font-weight: bold;
+}
+
+.attribute {
+    -fx-fill: #FF0000;
+}
+
+.attributenamespace {
+    -fx-fill: #FF0000;
+}
+
+.avalue {
+    -fx-fill: #8000FF;
+}
+
+.comment {
+    -fx-fill: #008000;
+}

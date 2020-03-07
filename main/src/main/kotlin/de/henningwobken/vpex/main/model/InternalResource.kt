@@ -13,6 +13,8 @@ enum class InternalResource(val filename: String) {
 
     // CSS
     EDITOR_CSS("editor.css"), //
+    SYNTAX_DEFAULT_CSS("syntax-default.css"), //
+    SYNTAX_NOTEPAD_CSS("syntax-notepad.css"), //
     TEXTAREA_CSS("textarea.css"), //
     TABPANE_CSS("tabpane.css"), //
 

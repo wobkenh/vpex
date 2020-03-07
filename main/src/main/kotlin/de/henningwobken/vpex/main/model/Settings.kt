@@ -24,6 +24,7 @@ data class Settings(
         val insecure: Boolean,
         val contextMenu: Boolean,
         val syntaxHighlighting: Boolean,
+        val syntaxHighlightingColorScheme: SyntaxHighlightingColorScheme,
         val startMenu: Boolean,
         val desktopIcon: Boolean,
         val ignoreAutoUpdateError: Boolean

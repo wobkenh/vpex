@@ -5,6 +5,7 @@ import de.henningwobken.vpex.main.controllers.UpdateController
 import de.henningwobken.vpex.main.controllers.WindowsContextMenuController
 import de.henningwobken.vpex.main.controllers.WindowsLinkController
 import de.henningwobken.vpex.main.model.Settings
+import de.henningwobken.vpex.main.model.SyntaxHighlightingColorScheme
 import de.henningwobken.vpex.main.model.VpexConstants
 import javafx.application.Platform
 import javafx.beans.property.SimpleBooleanProperty
@@ -47,6 +48,7 @@ class SettingsView : View("VPEX - Einstellungen") {
     private val insecureProperty = SimpleBooleanProperty()
     private val contextMenuProperty = SimpleBooleanProperty()
     private val syntaxHighlightingProperty = SimpleBooleanProperty()
+    private val syntaxHighlightingColorSchemeProperty = SimpleStringProperty()
     private val startMenuProperty = SimpleBooleanProperty()
     private val desktopIconProperty = SimpleBooleanProperty()
     private var hadContextMenu: Boolean
@@ -74,6 +76,7 @@ class SettingsView : View("VPEX - Einstellungen") {
         insecureProperty.set(settings.insecure)
         contextMenuProperty.set(settings.contextMenu)
         syntaxHighlightingProperty.set(settings.syntaxHighlighting)
+        syntaxHighlightingColorSchemeProperty.set(settings.syntaxHighlightingColorScheme.name)
         startMenuProperty.set(settings.startMenu)
         desktopIconProperty.set(settings.desktopIcon)
         hadContextMenu = settings.contextMenu
@@ -89,6 +92,21 @@ class SettingsView : View("VPEX - Einstellungen") {
                 fieldset("Appearance") {
                     field("Syntax Highlighting") {
                         checkbox("", syntaxHighlightingProperty)
+                    }
+                    field("Syntax Highlighting Color Scheme") {
+                        combobox(syntaxHighlightingColorSchemeProperty, SyntaxHighlightingColorScheme.values().toList().map { it.name }) {
+                            converter = object : StringConverter<String>() {
+                                override fun toString(colorScheme: String): String {
+                                    return SyntaxHighlightingColorScheme.valueOf(colorScheme).displayName
+                                }
+
+                                override fun fromString(displayName: String): String {
+                                    return (SyntaxHighlightingColorScheme.values()
+                                            .find { it.displayName == displayName }
+                                            ?: SyntaxHighlightingColorScheme.DEFAULT).name
+                                }
+                            }
+                        }
                     }
                     field("Wrap text") {
                         checkbox("", wrapProperty)
@@ -316,6 +334,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                 insecureProperty.get(),
                 contextMenuProperty.get(),
                 syntaxHighlightingProperty.get(),
+                SyntaxHighlightingColorScheme.valueOf(syntaxHighlightingColorSchemeProperty.get()),
                 startMenuProperty.get(),
                 desktopIconProperty.get(),
                 settingsController.getSettings().ignoreAutoUpdateError

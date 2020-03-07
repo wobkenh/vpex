@@ -361,15 +361,23 @@ class TabView : Fragment("File") {
     }
 
     init {
-        settingsController.settingsProperty.onChange {
-            updateSettings()
+        settingsController.settingsProperty.addListener { _, oldSettings, newSettings ->
+            updateSettings(oldSettings, newSettings)
         }
         updateSettings()
     }
 
-    private fun updateSettings() {
+    private fun updateSettings(oldSettings: Settings? = null, newSettings: Settings? = null) {
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
+
+        if (oldSettings != null && newSettings != null) {
+            if (oldSettings.syntaxHighlightingColorScheme != newSettings.syntaxHighlightingColorScheme) {
+                codeArea.stylesheets.clear()
+                addStylesheetsToCodearea()
+            }
+        }
+
         checkForDisplayModeChange()
     }
 
@@ -1367,7 +1375,8 @@ class TabView : Fragment("File") {
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
                 }
             }
-            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, it.position, displayMode.get(), this.getPageIndex(), showFindProperty.get())
+//            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, it.position, displayMode.get(), this.getPageIndex(), showFindProperty.get())
+            highlightingExcutor.queueTextChangedTask(codeArea, allFinds, it)
             // TODO: Remove when highlighting works
 //            if (this.hasFindProperty.get()) {
 //                // The edit has invalidated the search result => Remove Highlight
@@ -1387,7 +1396,7 @@ class TabView : Fragment("File") {
                 closeSearchAndReplace()
             }
         }
-        this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS))
+        addStylesheetsToCodearea()
         // Original: LineNumberFactory.get(codeArea)
         codeArea.paragraphGraphicFactory = PaginatedLineNumberFactory(codeArea) {
             // Needs to return the starting line count of the current page
@@ -1441,6 +1450,12 @@ class TabView : Fragment("File") {
         }
 
         return codeArea
+    }
+
+    private fun addStylesheetsToCodearea() {
+        this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS))
+        val syntaxHighlightingColorScheme = settingsController.getSettings().syntaxHighlightingColorScheme.internalResource
+        this.codeArea.stylesheets.add(internalResourceController.getAsResource(syntaxHighlightingColorScheme))
     }
 
     private fun getFullText(): String {
