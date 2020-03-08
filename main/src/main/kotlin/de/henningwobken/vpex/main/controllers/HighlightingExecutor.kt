@@ -14,6 +14,18 @@ class HighlightingExecutor : Controller() {
     private val settingsController by inject<SettingsController>()
     private val searchAndReplaceController by inject<SearchAndReplaceController>()
 
+    fun removeFinds() {
+        // TODO: clear style spans from finds and merge old styles if possible
+    }
+
+    fun nextFind() {
+        // TODO ?
+    }
+
+    fun allFinds() {
+        // TODO ?
+    }
+
     fun queueTextChangedTask(codeArea: CodeArea, allFinds: List<Find>, textChange: PlainTextChange) {
         // codearea text already has changes applied to it
         val startFrom = textChange.position
@@ -60,10 +72,9 @@ class HighlightingExecutor : Controller() {
         // - Remove finds
         // - part of text changed
         // - all of text changed
+        codeArea.clearStyle(startFrom, codeArea.length - 1)
         if (settingsController.getSettings().syntaxHighlighting) {
             codeArea.setStyleSpans(startFrom, xmlSyntaxHighlightingController.computeHighlighting(codeArea.text.substring(startFrom)))
-        } else {
-            codeArea.clearStyle(startFrom, codeArea.length - 1)
         }
         if (showFind) {
             highlightFinds(codeArea, allFinds, startFrom, displayMode, pageIndex)

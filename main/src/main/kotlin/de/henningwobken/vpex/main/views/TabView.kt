@@ -1150,7 +1150,7 @@ class TabView : Fragment("File") {
             }
             this.page.set(page)
             replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
-            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), 0, showFindProperty.get())
+            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), page, showFindProperty.get())
             if (callback != null) {
                 callback()
             }
@@ -1210,6 +1210,7 @@ class TabView : Fragment("File") {
                         codeArea.clearStyle(lastFindStart, lastFindEnd)
                     }
                 }
+                // TODO: highlighting executor
                 codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
                 lastFindStart = codeArea.anchor
                 lastFindEnd = findEnd
