@@ -120,13 +120,16 @@ class TabView : Fragment("File") {
                                 id = "findField"
                                 findTextField = this
                                 isWrapText = false
-                                prefHeight = 27.0
-                                maxHeight = 27.0
-                                minHeight = 27.0
                                 maxWidth = 200.0
                                 prefRowCount = 1
-                                // TODO: Auto expanding Textfield up to 3 rows
+                                this.textProperty().onChange {
+                                    if (it != null) {
+                                        val lines = stringUtils.countLinesInString(it)
+                                        prefRowCount = min(lines, 3)
+                                    }
+                                }
                                 this.setOnKeyPressed {
+                                    // TODO: Select next allfind if allFinds is filled?
                                     // Select the find if there was a find and the user did not change his position in the code area
                                     if (it.code == KeyCode.TAB && hasFindProperty.get() && lastFindStart == codeArea.anchor) {
                                         codeArea.requestFocus()
@@ -137,10 +140,14 @@ class TabView : Fragment("File") {
                                     } else if (it.code == KeyCode.ENTER) {
                                         it.consume()
                                         if (it.isShiftDown) {
-                                            val text = findTextField.text
-                                            val index = findTextField.caretPosition
-                                            findTextField.text = text.substring(0, index) + System.lineSeparator()
-                                            findTextField.positionCaret(index + 1)
+                                            if (it.isControlDown) {
+                                                val text = findTextField.text
+                                                val index = findTextField.caretPosition
+                                                findTextField.text = text.substring(0, index) + System.lineSeparator()
+                                                findTextField.positionCaret(index + 1)
+                                            } else {
+                                                findNext(reverse = true)
+                                            }
                                         } else {
                                             findNext()
                                         }
@@ -160,12 +167,14 @@ class TabView : Fragment("File") {
                                 id = "replaceField"
                                 replaceTextField = this
                                 isWrapText = false
-                                prefHeight = 27.0
-                                maxHeight = 27.0
-                                minHeight = 27.0
                                 maxWidth = 200.0
                                 prefRowCount = 1
-                                // TODO: Auto expanding Textfield up to 3 rows
+                                this.textProperty().onChange {
+                                    if (it != null) {
+                                        val lines = stringUtils.countLinesInString(it)
+                                        prefRowCount = min(lines, 3)
+                                    }
+                                }
                                 this.setOnKeyPressed {
                                     if (it.code == KeyCode.ENTER) {
                                         it.consume()
@@ -1727,11 +1736,11 @@ class TabView : Fragment("File") {
         }
     }
 
-    private fun findNext() {
+    private fun findNext(reverse: Boolean = false) {
         if (showedEndOfFileDialog) {
             showedEndOfFileDialog = false
             if (showedEndOfFileDialogCaretPosition == codeArea.caretPosition) {
-                if (searchDirection.get() == SearchDirection.DOWN) {
+                if ((searchDirection.get() == SearchDirection.DOWN && !reverse) || (searchDirection.get() == SearchDirection.UP && reverse)) {
                     moveToIndex(0) {
                         findNextFromCurrentCaretPosition()
                     }
@@ -1749,7 +1758,7 @@ class TabView : Fragment("File") {
         }
     }
 
-    private fun findNextFromCurrentCaretPosition() {
+    private fun findNextFromCurrentCaretPosition(reverse: Boolean = false) {
 
         Platform.runLater { statusTextProperty.set("Searching next") }
 
@@ -1763,7 +1772,13 @@ class TabView : Fragment("File") {
         }
 
         // Optional offset which prevents us from finding the last find again by skipping the first character
-        val searchDirection = searchDirection.get() as SearchDirection
+        var searchDirection = searchDirection.get() as SearchDirection
+        if (reverse) {
+            searchDirection = when (searchDirection) {
+                SearchDirection.UP -> SearchDirection.DOWN
+                SearchDirection.DOWN -> SearchDirection.UP
+            }
+        }
         val skipLastFindOffset = if (lastFindEnd > 0 && codeArea.caretPosition == lastFindStart) {
             val lastFindLength = lastFindEnd - lastFindStart
             if (searchDirection == SearchDirection.UP) {
