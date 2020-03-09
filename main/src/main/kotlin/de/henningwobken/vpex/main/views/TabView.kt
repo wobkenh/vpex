@@ -1201,18 +1201,8 @@ class TabView : Fragment("File") {
                 val findStart = codeArea.anchor
                 val findLength = find.end - find.start
                 val findEnd = codeArea.anchor + findLength.toInt()
-                if (searchAndReplaceController.isInPage(lastFind, this.getPageIndex(), this.settingsController.getSettings().pageSize)) {
-                    val lastFindWasInAllFinds = allFinds.find { it == lastFind } != null
-                    if (lastFindWasInAllFinds) {
-                        // Need to reapply old styling
-                        codeArea.setStyle(lastFindStart, min(lastFindEnd, codeArea.text.length), listOf("searchAllHighlight"))
-                    } else {
-                        codeArea.clearStyle(lastFindStart, lastFindEnd)
-                    }
-                }
-                // TODO: highlighting executor
-                codeArea.setStyle(findStart, min(findEnd, codeArea.text.length), listOf("searchHighlight"))
-                lastFindStart = codeArea.anchor
+                highlightingExcutor.nextFind(codeArea, lastFindStart, lastFindEnd, findStart, findEnd)
+                lastFindStart = findStart
                 lastFindEnd = findEnd
                 lastFind = find
                 this.hasFindProperty.set(true)
@@ -1466,7 +1456,7 @@ class TabView : Fragment("File") {
 
             // TODO: If a find was removed, we need to "repaint" at least the area in which the find used to be
             // so pass min/max bounds to textChangedTask
-            highlightingExcutor.queueTextChangedTask(codeArea, allFinds, textChange)
+            highlightingExcutor.queueTextChangedTask(codeArea, textChange)
         }
         this.codeArea = codeArea
         this.codeArea.setOnKeyPressed {
@@ -1538,9 +1528,9 @@ class TabView : Fragment("File") {
     }
 
     private fun addStylesheetsToCodearea() {
-        this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS))
         val syntaxHighlightingColorScheme = settingsController.getSettings().syntaxHighlightingColorScheme.internalResource
         this.codeArea.stylesheets.add(internalResourceController.getAsResource(syntaxHighlightingColorScheme))
+        this.codeArea.stylesheets.add(internalResourceController.getAsResource(InternalResource.EDITOR_CSS))
     }
 
     private fun getFullText(): String {

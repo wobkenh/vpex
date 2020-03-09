@@ -1,6 +1,6 @@
 package de.henningwobken.vpex.main.controllers
 
-import de.henningwobken.vpex.main.controllers.XmlSyntaxHighlightingControllerTest.ExpectedClass.*
+import de.henningwobken.vpex.main.controllers.ExpectedClass.*
 import org.fxmisc.richtext.model.StyleSpan
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -111,9 +111,4 @@ internal class XmlSyntaxHighlightingControllerTest {
         assertEquals(expectedStyleSpan.length, actualStyleSpan.length)
     }
 
-    data class ExpectedStyle(val length: Int, val style: ExpectedClass)
-
-    enum class ExpectedClass {
-        TAGMARK, ANYTAG, ATTRIBUTE, AVALUE, ATTRIBUTENAMESPACE, COMMENT, ANYNAMESPACE, NONE, CDATATAG, CDATADATA
-    }
 }

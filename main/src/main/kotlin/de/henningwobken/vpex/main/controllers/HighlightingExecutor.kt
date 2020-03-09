@@ -14,19 +14,50 @@ class HighlightingExecutor : Controller() {
     private val settingsController by inject<SettingsController>()
     private val searchAndReplaceController by inject<SearchAndReplaceController>()
 
-    fun removeFinds() {
-        // TODO: clear style spans from finds and merge old styles if possible
+    fun removeFinds(codeArea: CodeArea) {
+        val toRemove = listOf("searchHighlight", "searchAllHighlight")
+        // TODO: merge old styles if possible
+        val styleSpans = codeArea.getStyleSpans(0, codeArea.text.length)
+        for (styleSpan in styleSpans) {
+            styleSpan.style.removeAll(toRemove)
+        }
     }
 
-    fun nextFind() {
-        // TODO ?
+    fun nextFind(codeArea: CodeArea, oldFindStart: Int, oldFindEnd: Int, newFindStart: Int, newFindEnd: Int) {
+//        val pageSize = settingsController.getSettings().pageSize
+//        val offset = when(displayMode) {
+//            DisplayMode.PLAIN -> 0
+//            else -> pageIndex * pageSize
+//        }
+//        if (oldFind != null && searchAndReplaceController.isInPage(oldFind, pageIndex, pageSize)) {
+//            val oldStyleSpans = codeArea.getStyleSpans((oldFind.start - offset).toInt(), (oldFind.end - offset).toInt())
+//
+//        }
+        if (oldFindEnd > 0) {
+            codeArea.setStyleSpans(oldFindStart,
+                    codeArea.getStyleSpans(oldFindStart, oldFindEnd)
+                            .mapStyles { styles -> styles.filter { it != "searchHighlight" } }
+            )
+//            for (oldStyleSpan in oldStyleSpans) {
+//                oldStyleSpan.style.remove("searchHighlight")
+//            }
+        }
+        codeArea.setStyleSpans(newFindStart,
+                codeArea.getStyleSpans(newFindStart, newFindEnd)
+                        .mapStyles { styles -> styles.union(listOf("searchHighlight")) }
+        )
+//        newStyleSpans.
+//        codeArea.setStyle(newFindStart, newFindEnd, listOf("searchHighlight"))
+//        for (newStyleSpan in newStyleSpans) {
+//            newStyleSpan.style = newStyleSpan.style.union(listOf("searchHighlight"))
+//        }
     }
 
     fun allFinds() {
         // TODO ?
     }
 
-    fun queueTextChangedTask(codeArea: CodeArea, allFinds: List<Find>, textChange: PlainTextChange) {
+    fun queueTextChangedTask(codeArea: CodeArea, textChange: PlainTextChange) {
         // codearea text already has changes applied to it
         val startFrom = textChange.position
         val endAt = startFrom + textChange.inserted.length
@@ -72,7 +103,7 @@ class HighlightingExecutor : Controller() {
         // - Remove finds
         // - part of text changed
         // - all of text changed
-        codeArea.clearStyle(startFrom, codeArea.length - 1)
+        codeArea.clearStyle(startFrom, codeArea.length)
         if (settingsController.getSettings().syntaxHighlighting) {
             codeArea.setStyleSpans(startFrom, xmlSyntaxHighlightingController.computeHighlighting(codeArea.text.substring(startFrom)))
         }

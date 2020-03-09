@@ -41,51 +41,51 @@ class XmlSyntaxHighlightingController : Controller() {
         var lastKwEnd = 0
         val spansBuilder = StyleSpansBuilder<Collection<String>>()
         while (matcher.find()) {
-            spansBuilder.add(emptyList(), matcher.start() - lastKwEnd)
+            spansBuilder.add(mutableListOf(), matcher.start() - lastKwEnd)
             when {
                 matcher.group("COMMENT") != null -> {
-                    spansBuilder.add(setOf("comment"), matcher.end() - matcher.start())
+                    spansBuilder.add(mutableListOf("comment"), matcher.end() - matcher.start())
                 }
                 matcher.group("CDATA") != null -> {
-                    spansBuilder.add(setOf("cdatatag"), matcher.end(GROUP_CDATA_OPENING_TAG) - matcher.start(GROUP_CDATA_OPENING_TAG))
-                    spansBuilder.add(setOf("cdatadata"), matcher.end(GROUP_CDATA_DATA) - matcher.start(GROUP_CDATA_DATA))
-                    spansBuilder.add(setOf("cdatatag"), matcher.end(GROUP_CDATA_CLOSING_TAG) - matcher.start(GROUP_CDATA_CLOSING_TAG))
+                    spansBuilder.add(mutableListOf("cdatatag"), matcher.end(GROUP_CDATA_OPENING_TAG) - matcher.start(GROUP_CDATA_OPENING_TAG))
+                    spansBuilder.add(mutableListOf("cdatadata"), matcher.end(GROUP_CDATA_DATA) - matcher.start(GROUP_CDATA_DATA))
+                    spansBuilder.add(mutableListOf("cdatatag"), matcher.end(GROUP_CDATA_CLOSING_TAG) - matcher.start(GROUP_CDATA_CLOSING_TAG))
                 }
                 matcher.group("ELEMENT") != null -> {
                     val attributesText = matcher.group(GROUP_ATTRIBUTES_SECTION)
-                    spansBuilder.add(setOf("tagmark"), matcher.end(GROUP_OPEN_BRACKET) - matcher.start(GROUP_OPEN_BRACKET))
+                    spansBuilder.add(mutableListOf("tagmark"), matcher.end(GROUP_OPEN_BRACKET) - matcher.start(GROUP_OPEN_BRACKET))
                     if (matcher.end(GROUP_ELEMENT_NAMESPACE) >= 0) {
-                        spansBuilder.add(setOf("anynamespace"), matcher.end(GROUP_ELEMENT_NAMESPACE) - matcher.end(GROUP_OPEN_BRACKET))
-                        spansBuilder.add(setOf("anytag"), matcher.end(GROUP_ELEMENT_NAME) - matcher.end(GROUP_ELEMENT_NAMESPACE))
+                        spansBuilder.add(mutableListOf("anynamespace"), matcher.end(GROUP_ELEMENT_NAMESPACE) - matcher.end(GROUP_OPEN_BRACKET))
+                        spansBuilder.add(mutableListOf("anytag"), matcher.end(GROUP_ELEMENT_NAME) - matcher.end(GROUP_ELEMENT_NAMESPACE))
                     } else {
                         // No Namspace prefix
-                        spansBuilder.add(setOf("anytag"), matcher.end(GROUP_ELEMENT_NAME) - matcher.end(GROUP_OPEN_BRACKET))
+                        spansBuilder.add(mutableListOf("anytag"), matcher.end(GROUP_ELEMENT_NAME) - matcher.end(GROUP_OPEN_BRACKET))
                     }
                     if (attributesText.isNotEmpty()) {
                         lastKwEnd = 0
                         val amatcher = ATTRIBUTES.matcher(attributesText)
                         while (amatcher.find()) {
-                            spansBuilder.add(emptyList(), amatcher.start() - lastKwEnd)
+                            spansBuilder.add(mutableListOf(), amatcher.start() - lastKwEnd)
                             if (matcher.end(GROUP_ATTRIBUTE_NAMESPACE) >= 0) {
-                                spansBuilder.add(setOf("attributenamespace"), amatcher.end(GROUP_ATTRIBUTE_NAMESPACE) - amatcher.start(GROUP_ATTRIBUTE_NAMESPACE))
+                                spansBuilder.add(mutableListOf("attributenamespace"), amatcher.end(GROUP_ATTRIBUTE_NAMESPACE) - amatcher.start(GROUP_ATTRIBUTE_NAMESPACE))
                             }
-                            spansBuilder.add(setOf("attribute"), amatcher.end(GROUP_ATTRIBUTE_NAME) - amatcher.start(GROUP_ATTRIBUTE_NAME))
-                            spansBuilder.add(setOf("tagmark"), amatcher.end(GROUP_EQUAL_SYMBOL) - amatcher.end(GROUP_ATTRIBUTE_NAME))
-                            spansBuilder.add(setOf("avalue"), amatcher.end(GROUP_ATTRIBUTE_VALUE) - amatcher.end(GROUP_EQUAL_SYMBOL))
+                            spansBuilder.add(mutableListOf("attribute"), amatcher.end(GROUP_ATTRIBUTE_NAME) - amatcher.start(GROUP_ATTRIBUTE_NAME))
+                            spansBuilder.add(mutableListOf("tagmark"), amatcher.end(GROUP_EQUAL_SYMBOL) - amatcher.end(GROUP_ATTRIBUTE_NAME))
+                            spansBuilder.add(mutableListOf("avalue"), amatcher.end(GROUP_ATTRIBUTE_VALUE) - amatcher.end(GROUP_EQUAL_SYMBOL))
                             lastKwEnd = amatcher.end()
                         }
                         if (attributesText.length > lastKwEnd) {
-                            spansBuilder.add(emptyList(), attributesText.length - lastKwEnd)
+                            spansBuilder.add(mutableListOf(), attributesText.length - lastKwEnd)
                         }
                     }
                     lastKwEnd = matcher.end(GROUP_ATTRIBUTES_SECTION)
-                    spansBuilder.add(setOf("tagmark"), matcher.end(GROUP_CLOSE_BRACKET) - lastKwEnd)
+                    spansBuilder.add(mutableListOf("tagmark"), matcher.end(GROUP_CLOSE_BRACKET) - lastKwEnd)
                 }
             }
 
             lastKwEnd = matcher.end()
         }
-        spansBuilder.add(emptyList(), text.length - lastKwEnd)
+        spansBuilder.add(mutableListOf(), text.length - lastKwEnd)
         return spansBuilder.create()
     }
 }
