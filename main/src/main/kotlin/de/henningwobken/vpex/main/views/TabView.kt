@@ -47,7 +47,7 @@ class TabView : Fragment("File") {
     private val vpexExecutor: VpexExecutor by inject()
     private val fileCalculationController: FileCalculationController by inject()
     private val fileWatcher: FileWatcher by inject()
-    private val highlightingExcutor: HighlightingExecutor by inject()
+    private val highlightingExcutor: HighlightingController by inject()
 
     val isDirty: BooleanProperty = SimpleBooleanProperty(false)
     val saveLockProperty = SimpleBooleanProperty(false)
@@ -229,8 +229,7 @@ class TabView : Fragment("File") {
                                         Platform.runLater {
                                             if (!hasSelectedFind && finds.isNotEmpty()) {
                                                 hasSelectedFind = true
-                                                currentAllFindsIndex.set(0)
-                                                moveToFind(finds.first())
+                                                moveToFindIndex(0)
                                                 highlightingExcutor.allFinds(codeArea, displayMode.get(), getPageIndex(), allFinds)
                                             }
                                             allFindsSize.set(allFinds.size)
@@ -308,9 +307,7 @@ class TabView : Fragment("File") {
                                     if (enteredIndex < 0 || enteredIndex >= allFinds.size) {
                                         currentAllFindsDisplayIndex.set(currentAllFindsIndex.get() + 1)
                                     } else {
-                                        currentAllFindsIndex.set(enteredIndex)
-                                        val find = allFinds[enteredIndex]
-                                        moveToFind(find)
+                                        moveToFindIndex(enteredIndex)
                                     }
                                 }
                                 label("/")
@@ -323,20 +320,14 @@ class TabView : Fragment("File") {
                                         currentAllFindsDisplayIndex.lessThanOrEqualTo(1)
                                     }
                                 }.action {
-                                    val findIndex = currentAllFindsIndex.get() - 1
-                                    currentAllFindsIndex.set(findIndex)
-                                    val find = allFinds[findIndex]
-                                    moveToFind(find)
+                                    moveToFindIndex(currentAllFindsIndex.get() - 1)
                                 }
                                 button(">>") {
                                     disableWhen {
                                         currentAllFindsDisplayIndex.greaterThanOrEqualTo(allFindsSize)
                                     }
                                 }.action {
-                                    val findIndex = currentAllFindsIndex.get() + 1
-                                    currentAllFindsIndex.set(findIndex)
-                                    val find = allFinds[findIndex]
-                                    moveToFind(find)
+                                    moveToFindIndex(currentAllFindsIndex.get() + 1)
                                 }
                             }
                         }
@@ -383,7 +374,7 @@ class TabView : Fragment("File") {
                 addStylesheetsToCodearea()
             }
             if (oldSettings.syntaxHighlighting != newSettings.syntaxHighlighting) {
-                highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), this.getPageIndex(), this.showFindProperty.get())
+                highlightEverything(this.getPageIndex())
             }
         }
 
@@ -427,6 +418,7 @@ class TabView : Fragment("File") {
      * Opens the search panel and sets the search term if text is currently selected.
      */
     fun openSearch() {
+        // TODO: Redo find highlighting
         showReplaceProperty.set(false)
         showFindProperty.set(true)
         if (!codeArea.selectedText.isNullOrBlank()) {
@@ -846,9 +838,11 @@ class TabView : Fragment("File") {
                 this.codeArea.moveTo(0, 0)
                 codeArea.undoManager.forgetHistory()
             }
-        } else if (this.settingsController.getSettings().pagination) {
-            this.fullText = file.readText()
-            if (fullText.length > settingsController.getSettings().paginationThreshold) {
+        } else {
+            val fullText = file.readText()
+            if (this.settingsController.getSettings().pagination
+                    && fullText.length > settingsController.getSettings().paginationThreshold) {
+                this.fullText = fullText
                 logger.info { "Opening file in pagination mode" }
                 displayMode.set(DisplayMode.PAGINATION)
                 dirtySinceLastSync = true
@@ -859,16 +853,12 @@ class TabView : Fragment("File") {
             } else {
                 logger.info { "Opening file in plain mode" }
                 displayMode.set(DisplayMode.PLAIN)
-                replaceText(file.readText())
                 lineCount.bind(codeArea.paragraphs.sizeProperty)
+                replaceText(fullText)
                 codeArea.undoManager.forgetHistory()
+                // normally, moveToPage would repaint highlighting. here, we have to do that manually
+                highlightEverything(0)
             }
-        } else {
-            logger.info { "Opening file in plain mode" }
-            displayMode.set(DisplayMode.PLAIN)
-            lineCount.bind(codeArea.paragraphs.sizeProperty)
-            replaceText(file.readText())
-            codeArea.undoManager.forgetHistory()
         }
         this.codeArea.moveTo(0, 0)
         this.isDirty.set(false)
@@ -1058,12 +1048,33 @@ class TabView : Fragment("File") {
      */
     private fun moveToPage(page: Int, syncDirection: SyncDirection, callback: (() -> Unit)? = null) {
         logger.info("Moving to page $page with sync direction $syncDirection")
+        val pageIndex = page - 1
         val pageSize = settingsController.getSettings().pageSize
-        lastFindEnd = 0
-        lastFindStart = 0
-        lastFind = Find(0L, 0L)
-        hasFindProperty.set(false)
-        showedEndOfFileDialog = false
+        var newFind: Find? = null
+        var newFindIndex: Int? = null
+        for (index in allFinds.indices) {
+            val allFind = allFinds[index]
+            if (searchAndReplaceController.isInPage(allFind, pageIndex, pageSize)) {
+                newFind = allFind
+                newFindIndex = index
+                break
+            }
+        }
+        if (newFind != null && newFindIndex != null) {
+            val pageOffset = pageSize * pageIndex
+            lastFind = newFind
+            lastFindStart = (newFind.start - pageOffset).toInt()
+            lastFindEnd = (newFind.end - pageOffset).toInt()
+            currentAllFindsIndex.set(newFindIndex)
+        } else {
+            lastFindStart = 0
+            lastFindEnd = 0
+            lastFind = Find(0L, 0L)
+            hasFindProperty.set(false)
+            showedEndOfFileDialog = false
+            // TODO: Set index to last index before this page
+            // currentAllFindsIndex.set(-1)
+        }
 
 
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
@@ -1126,7 +1137,7 @@ class TabView : Fragment("File") {
                     mainView.isDirty.set(false) // Changes were either saved or discarded
                     replaceText(text)
                     mainView.page.set(page)
-                    highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), page - 1, showFindProperty.get())
+                    highlightEverything(page - 1)
                     if (callback != null) {
                         callback()
                     }
@@ -1146,7 +1157,7 @@ class TabView : Fragment("File") {
             }
             this.page.set(page)
             replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
-            highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), page, showFindProperty.get())
+            highlightEverything(page - 1)
             if (callback != null) {
                 callback()
             }
@@ -1191,7 +1202,14 @@ class TabView : Fragment("File") {
         }
     }
 
-    private fun moveToFind(find: Find) {
+    private fun moveToFindIndex(allFindsIndex: Int) {
+        val find = allFinds[allFindsIndex]
+        moveToFind(find) {
+            currentAllFindsIndex.set(allFindsIndex)
+        }
+    }
+
+    private fun moveToFind(find: Find, callback: (() -> Unit)? = null) {
         moveToIndex(find.start) {
             Platform.runLater {
                 val findStart = codeArea.anchor
@@ -1202,6 +1220,9 @@ class TabView : Fragment("File") {
                 lastFindEnd = findEnd
                 lastFind = find
                 this.hasFindProperty.set(true)
+                if (callback != null) {
+                    callback()
+                }
             }
         }
     }
@@ -1856,5 +1877,9 @@ class TabView : Fragment("File") {
 
     private fun getPageIndex(): Int {
         return this.page.get() - 1
+    }
+
+    private fun highlightEverything(pageIndex: Int = 0) {
+        highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), pageIndex, showFindProperty.get())
     }
 }

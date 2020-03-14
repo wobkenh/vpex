@@ -8,7 +8,7 @@ import tornadofx.*
 import kotlin.math.max
 import kotlin.math.min
 
-class HighlightingExecutor : Controller() {
+class HighlightingController : Controller() {
 
     companion object {
         const val CURRENT_FIND = "searchHighlight"
@@ -93,23 +93,23 @@ class HighlightingExecutor : Controller() {
         if (currentFind.end == 0L) {
             return
         }
-        applyFindHighlight(codeArea, displayMode, pageIndex, currentFind)
+        applyFindHighlight(codeArea, displayMode, pageIndex, CURRENT_FIND, currentFind)
     }
 
     private fun highlightFinds(codeArea: CodeArea, displayMode: DisplayMode, pageIndex: Int, allFinds: List<Find>) {
         if (allFinds.isEmpty()) {
             return
         }
-        applyFindHighlight(codeArea, displayMode, pageIndex, *allFinds.toTypedArray())
+        applyFindHighlight(codeArea, displayMode, pageIndex, ALL_FIND, *allFinds.toTypedArray()) // * = spread operator
     }
 
     // Function to handle display mode when highlighting
 
-    private fun applyFindHighlight(codeArea: CodeArea, displayMode: DisplayMode, pageIndex: Int, vararg finds: Find) {
+    private fun applyFindHighlight(codeArea: CodeArea, displayMode: DisplayMode, pageIndex: Int, className: String, vararg finds: Find) {
         val pageSize = this.settingsController.getSettings().pageSize
         if (displayMode == DisplayMode.PLAIN) {
             for (find in finds) {
-                highlight(codeArea, find.start.toInt(), find.end.toInt(), ALL_FIND)
+                highlight(codeArea, find.start.toInt(), find.end.toInt(), className)
             }
         } else {
             val pageOffset = pageIndex * pageSize.toLong()
@@ -117,7 +117,7 @@ class HighlightingExecutor : Controller() {
                 if (searchAndReplaceController.isInPage(find, pageIndex, pageSize)) {
                     val start = max(find.start - pageOffset, 0).toInt()
                     val end = min(find.end - pageOffset, pageSize.toLong() - 1).toInt()
-                    highlight(codeArea, start, end, ALL_FIND)
+                    highlight(codeArea, start, end, className)
                 }
             }
         }

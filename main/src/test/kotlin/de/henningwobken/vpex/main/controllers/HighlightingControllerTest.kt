@@ -8,9 +8,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import tornadofx.*
 
-internal class HighlightingExecutorTest {
-    private val scope = Scope(StringUtils(), SearchAndReplaceController(), HighlightingExecutor())
-    private val highlightingExecutor = FX.getComponents(scope)[HighlightingExecutor::class] as HighlightingExecutor
+internal class HighlightingControllerTest {
+    private val scope = Scope(StringUtils(), SearchAndReplaceController(), HighlightingController())
+    private val highlightingExecutor = FX.getComponents(scope)[HighlightingController::class] as HighlightingController
 
     @Test
     fun queueTextChangedTask() {
