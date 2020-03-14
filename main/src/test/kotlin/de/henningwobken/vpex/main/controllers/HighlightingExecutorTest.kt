@@ -2,6 +2,7 @@ package de.henningwobken.vpex.main.controllers
 
 import de.henningwobken.vpex.main.controllers.ExpectedClass.*
 import de.henningwobken.vpex.main.model.DisplayMode
+import de.henningwobken.vpex.main.model.Find
 import org.fxmisc.richtext.CodeArea
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -48,7 +49,7 @@ internal class HighlightingExecutorTest {
     fun `highlight find next with xml highlighting`() {
         val codeArea = CodeArea()
         codeArea.replaceText("<test>test</test>")
-        highlightingExecutor.queueHighlightingTask(codeArea, listOf(), 0, DisplayMode.PLAIN, 0, true)
+        highlightingExecutor.highlightEverything(codeArea, listOf(), Find(0L, 0L), DisplayMode.PLAIN, 0, true)
 
         checkStyle(listOf(
                 ExpectedStyles(1, TAGMARK),

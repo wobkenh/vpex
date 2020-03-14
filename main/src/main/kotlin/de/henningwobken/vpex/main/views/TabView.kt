@@ -47,7 +47,6 @@ class TabView : Fragment("File") {
     private val vpexExecutor: VpexExecutor by inject()
     private val fileCalculationController: FileCalculationController by inject()
     private val fileWatcher: FileWatcher by inject()
-    private val xmlSyntaxHighlightingController: XmlSyntaxHighlightingController by inject()
     private val highlightingExcutor: HighlightingExecutor by inject()
 
     val isDirty: BooleanProperty = SimpleBooleanProperty(false)
@@ -89,7 +88,7 @@ class TabView : Fragment("File") {
     private var showedEndOfFileDialogCaretPosition = 0
 
     // Pagination
-    val displayMode = SimpleObjectProperty<DisplayMode>(DisplayMode.PLAIN)
+    val displayMode = SimpleObjectProperty(DisplayMode.PLAIN)
     val page = SimpleIntegerProperty(1)
     val maxPage = SimpleIntegerProperty(0)
     private var fullText: String = ""
@@ -119,15 +118,7 @@ class TabView : Fragment("File") {
                             textarea(findProperty) {
                                 id = "findField"
                                 findTextField = this
-                                isWrapText = false
-                                maxWidth = 200.0
-                                prefRowCount = 1
-                                this.textProperty().onChange {
-                                    if (it != null) {
-                                        val lines = stringUtils.countLinesInString(it)
-                                        prefRowCount = min(lines, 3)
-                                    }
-                                }
+                                autogrowTextArea(this)
                                 this.setOnKeyPressed {
                                     // TODO: Select next allfind if allFinds is filled?
                                     // Select the find if there was a find and the user did not change his position in the code area
@@ -166,15 +157,7 @@ class TabView : Fragment("File") {
                             textarea(replaceProperty) {
                                 id = "replaceField"
                                 replaceTextField = this
-                                isWrapText = false
-                                maxWidth = 200.0
-                                prefRowCount = 1
-                                this.textProperty().onChange {
-                                    if (it != null) {
-                                        val lines = stringUtils.countLinesInString(it)
-                                        prefRowCount = min(lines, 3)
-                                    }
-                                }
+                                autogrowTextArea(this)
                                 this.setOnKeyPressed {
                                     if (it.code == KeyCode.ENTER) {
                                         it.consume()
@@ -240,8 +223,7 @@ class TabView : Fragment("File") {
                                     ViewHelper.fillHorizontal(this)
                                 }.action {
                                     statusTextProperty.set("Searching")
-                                    allFindsSize.set(0)
-                                    currentAllFindsIndex.set(-1) // Shows as 0 in gui (display index)
+                                    resetFinds()
                                     var hasSelectedFind = false
                                     searchAll({ finds, _, _ ->
                                         Platform.runLater {
@@ -249,15 +231,16 @@ class TabView : Fragment("File") {
                                                 hasSelectedFind = true
                                                 currentAllFindsIndex.set(0)
                                                 moveToFind(finds.first())
-                                                highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), getPageIndex(), showFindProperty.get())
+                                                highlightingExcutor.allFinds(codeArea, displayMode.get(), getPageIndex(), allFinds)
                                             }
                                             allFindsSize.set(allFinds.size)
                                         }
                                     }, endCallback = {
                                         Platform.runLater {
                                             statusTextProperty.set("")
-                                            // TODO: Only need to change find highlighting, not everything
-                                            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), getPageIndex(), showFindProperty.get())
+                                            // TODO: Do we need that? Highlighting should be done by above callback
+                                            // Only need to change find highlighting, not everything
+                                            // highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), getPageIndex(), showFindProperty.get())
                                         }
                                     })
                                 }
@@ -378,6 +361,18 @@ class TabView : Fragment("File") {
         updateSettings()
     }
 
+    private fun autogrowTextArea(textArea: TextArea) {
+        textArea.isWrapText = false
+        textArea.maxWidth = 200.0
+        textArea.prefRowCount = 1
+        textArea.textProperty().onChange {
+            if (it != null) {
+                val lines = stringUtils.countLinesInString(it)
+                textArea.prefRowCount = min(lines, 3)
+            }
+        }
+    }
+
     private fun updateSettings(oldSettings: Settings? = null, newSettings: Settings? = null) {
         codeArea.wrapTextProperty().set(settingsController.getSettings().wrapText)
         numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
@@ -388,7 +383,7 @@ class TabView : Fragment("File") {
                 addStylesheetsToCodearea()
             }
             if (oldSettings.syntaxHighlighting != newSettings.syntaxHighlighting) {
-                highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), this.getPageIndex(), this.showFindProperty.get())
+                highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), this.getPageIndex(), this.showFindProperty.get())
             }
         }
 
@@ -909,13 +904,14 @@ class TabView : Fragment("File") {
         lastFind = Find(0L, 0L)
         lastFindStart = 0
         lastFindEnd = 0
+        highlightingExcutor.removeFinds(codeArea)
         currentAllFindsIndex.set(-1)
     }
 
     private fun closeSearchAndReplace() {
         showReplaceProperty.set(false)
         showFindProperty.set(false)
-        this.highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), this.getPageIndex(), showFindProperty.get())
+        this.highlightingExcutor.removeFinds(codeArea)
     }
 
     private fun replaceText(text: String) {
@@ -1130,7 +1126,7 @@ class TabView : Fragment("File") {
                     mainView.isDirty.set(false) // Changes were either saved or discarded
                     replaceText(text)
                     mainView.page.set(page)
-                    highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), page - 1, showFindProperty.get())
+                    highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), page - 1, showFindProperty.get())
                     if (callback != null) {
                         callback()
                     }
@@ -1150,7 +1146,7 @@ class TabView : Fragment("File") {
             }
             this.page.set(page)
             replaceText(this.fullText.substring((page - 1) * pageSize, min(page * pageSize, this.fullText.length)))
-            highlightingExcutor.queueHighlightingTask(codeArea, allFinds, 0, displayMode.get(), page, showFindProperty.get())
+            highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), page, showFindProperty.get())
             if (callback != null) {
                 callback()
             }
@@ -1393,70 +1389,70 @@ class TabView : Fragment("File") {
                     val removedLines = this.stringUtils.countLinesInString(textChange.removed) - 1
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
                 }
-            }
 
-            // find next => remove highlighting if in removed and change bounds if after removed
-            var findInvalidated = false
-            val removeLength = textChange.removed.length
-            val removeStart = textChange.position
-            val removeEnd = removeStart + removeLength
-            val lastFindWasInAllFinds = allFinds.find { it == lastFind } != null
+                // find next => remove highlighting if in removed and change bounds if after removed
+                var findInvalidated = false
+                val removeLength = textChange.removed.length
+                val removeStart = textChange.position
+                val removeEnd = removeStart + removeLength
+                val lastFindWasInAllFinds = allFinds.find { it == lastFind } != null
 
-            if (this.hasFindProperty.get()) {
-                if (!lastFindWasInAllFinds) {
-                    if (lastFindStart <= removeEnd && lastFindEnd >= removeStart) {
-                        // was removed ==> invalidate
-                        removeLastFind()
-                        findInvalidated = true
-                    } else if (lastFindStart >= removeEnd) {
-                        lastFindStart += textChange.netLength
-                        lastFindEnd += textChange.netLength
-                        lastFind = Find(lastFind.start + textChange.netLength, lastFind.end + textChange.netLength)
+                if (this.hasFindProperty.get()) {
+                    if (!lastFindWasInAllFinds) {
+                        if (lastFindStart <= removeEnd && lastFindEnd >= removeStart) {
+                            // was removed ==> invalidate
+                            removeLastFind()
+                            findInvalidated = true
+                        } else if (lastFindStart >= removeEnd) {
+                            lastFindStart += textChange.netLength
+                            lastFindEnd += textChange.netLength
+                            lastFind = Find(lastFind.start + textChange.netLength, lastFind.end + textChange.netLength)
+                        }
                     }
                 }
-            }
 
-            // TODO: Check if find was revalidated or new find was created through change
+                // TODO: Check if find was revalidated or new find was created through change
 
-            // all finds => remove highlighting if in removed and change bounds if after removed
-            val offset = when (displayMode.get()) {
-                DisplayMode.PLAIN -> 0
-                else -> this.getPageIndex() * this.settingsController.getSettings().pageSize
-            }
-            val indicesToRemove = mutableListOf<Int>()
-            for (index in allFinds.indices) {
-                val find = allFinds[index]
-                if (find.start - offset <= removeEnd && find.end - offset >= removeStart) {
-                    // remove later to not invalidate the index range we are looping over
-                    indicesToRemove.add(index)
-                    if (find == lastFind) {
-                        removeLastFind()
-                        findInvalidated = true
-                    }
-                } else if (find.start >= removeEnd) {
-                    allFinds[index] = Find(find.start + textChange.netLength, find.end + textChange.netLength)
-                    if (find == lastFind) {
-                        lastFindStart += textChange.netLength
-                        lastFindEnd += textChange.netLength
-                        lastFind = Find(lastFind.start + textChange.netLength, lastFind.end + textChange.netLength)
+                // all finds => remove highlighting if in removed and change bounds if after removed
+                val offset = when (displayMode.get()) {
+                    DisplayMode.PLAIN -> 0
+                    else -> this.getPageIndex() * this.settingsController.getSettings().pageSize
+                }
+                val indicesToRemove = mutableListOf<Int>()
+                for (index in allFinds.indices) {
+                    val find = allFinds[index]
+                    if (find.start - offset <= removeEnd && find.end - offset >= removeStart) {
+                        // remove later to not invalidate the index range we are looping over
+                        indicesToRemove.add(index)
+                        if (find == lastFind) {
+                            removeLastFind()
+                            findInvalidated = true
+                        }
+                    } else if (find.start >= removeEnd) {
+                        allFinds[index] = Find(find.start + textChange.netLength, find.end + textChange.netLength)
+                        if (find == lastFind) {
+                            lastFindStart += textChange.netLength
+                            lastFindEnd += textChange.netLength
+                            lastFind = Find(lastFind.start + textChange.netLength, lastFind.end + textChange.netLength)
+                        }
                     }
                 }
-            }
-            for (index in indicesToRemove.reversed()) {
-                allFinds.removeAt(index)
-            }
-
-            if (allFindsSize.get() > -1) {
-                allFindsSize.set(allFinds.size)
-                // TODO: Recalculate find index?
-                if (findInvalidated) {
-                    currentAllFindsIndex.set(-1) // Shows as 0 in gui (display index)
+                for (index in indicesToRemove.reversed()) {
+                    allFinds.removeAt(index)
                 }
-            }
 
-            // TODO: If a find was removed, we need to "repaint" at least the area in which the find used to be
-            // so pass min/max bounds to textChangedTask
-            highlightingExcutor.queueTextChangedTask(codeArea, textChange)
+                if (allFindsSize.get() > -1) {
+                    allFindsSize.set(allFinds.size)
+                    // TODO: Recalculate find index?
+                    if (findInvalidated) {
+                        currentAllFindsIndex.set(-1) // Shows as 0 in gui (display index)
+                    }
+                }
+
+                // TODO: If a find was removed, we need to "repaint" at least the area in which the find used to be
+                // so pass min/max bounds to textChangedTask
+                highlightingExcutor.textChanged(codeArea, textChange)
+            }
         }
         this.codeArea = codeArea
         this.codeArea.setOnKeyPressed {

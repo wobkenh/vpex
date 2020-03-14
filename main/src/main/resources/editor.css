@@ -1,11 +1,11 @@
-.searchHighlight {
-    -rtfx-background-color: red;
+.searchAllHighlight {
+    -rtfx-background-color: #262537;
     -fx-text-fill: white;
     -fx-fill: white;
 }
 
-.searchAllHighlight {
-    -rtfx-background-color: #262537;
+.searchHighlight {
+    -rtfx-background-color: red;
     -fx-text-fill: white;
     -fx-fill: white;
 }
