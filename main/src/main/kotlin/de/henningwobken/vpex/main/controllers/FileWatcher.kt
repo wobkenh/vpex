@@ -98,7 +98,7 @@ class FileWatcher : Controller() {
     fun start() {
         logger.info("Starting FileWatcher")
         stop.set(false)
-        Thread {
+        Thread({
             while (!stop.get()) {
                 for (watchEntry in watchEntries) {
                     for (event in watchEntry.watchKey.pollEvents()) {
@@ -128,7 +128,7 @@ class FileWatcher : Controller() {
                 Thread.sleep(50)
             }
             logger.info("Stopped FileWatcher")
-        }.start()
+        }, "FileWatcher").start()
     }
 
     fun stop() {

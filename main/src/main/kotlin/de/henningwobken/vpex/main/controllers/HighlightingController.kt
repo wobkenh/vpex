@@ -2,6 +2,7 @@ package de.henningwobken.vpex.main.controllers;
 
 import de.henningwobken.vpex.main.model.DisplayMode
 import de.henningwobken.vpex.main.model.Find
+import mu.KotlinLogging
 import org.fxmisc.richtext.CodeArea
 import org.fxmisc.richtext.model.PlainTextChange
 import tornadofx.*
@@ -15,7 +16,7 @@ class HighlightingController : Controller() {
         const val ALL_FIND = "searchAllHighlight"
     }
 
-
+    private val logger = KotlinLogging.logger {}
     private val xmlSyntaxHighlightingController by inject<XmlSyntaxHighlightingController>()
     private val settingsController by inject<SettingsController>()
     private val searchAndReplaceController by inject<SearchAndReplaceController>()

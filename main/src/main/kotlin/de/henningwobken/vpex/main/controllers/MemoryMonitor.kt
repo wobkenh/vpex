@@ -18,7 +18,7 @@ class MemoryMonitor : Controller() {
     private var stopMonitorThread = false
 
     fun start() {
-        val thread = Thread {
+        val thread = Thread({
             while (true) {
                 if (stopMonitorThread) {
                     stopMonitorThread = false
@@ -38,7 +38,7 @@ class MemoryMonitor : Controller() {
                 Thread.sleep(3000)
             }
             logger.info { "Stopped memory monitor thread" }
-        }
+        }, "MemoryMonitor")
         thread.start()
         isRunning = true
     }

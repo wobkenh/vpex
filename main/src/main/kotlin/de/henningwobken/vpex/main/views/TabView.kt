@@ -60,10 +60,9 @@ class TabView : Fragment("File") {
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
 
     // Visible for Testing:
-    var codeArea: CodeArea by singleAssign()
-
-    private lateinit var findTextField: TextArea
-    private lateinit var replaceTextField: TextArea
+    lateinit var codeArea: CodeArea
+    lateinit var findTextField: TextArea
+    lateinit var replaceTextField: TextArea
 
     private var isAskingForFileReload = false
 
@@ -224,32 +223,13 @@ class TabView : Fragment("File") {
                                     enableWhen { vpexExecutor.isRunning.not() }
                                     ViewHelper.fillHorizontal(this)
                                 }.action {
-                                    statusTextProperty.set("Searching")
-                                    resetFinds()
-                                    var hasSelectedFind = false
-                                    searchAll({ finds, _, _ ->
-                                        Platform.runLater {
-                                            if (!hasSelectedFind && finds.isNotEmpty()) {
-                                                hasSelectedFind = true
-                                                moveToFindIndex(0)
-                                                highlightingExcutor.allFinds(codeArea, displayMode.get(), getPageIndex(), allFinds)
-                                            }
-                                            allFindsSize.set(allFinds.size)
-                                        }
-                                    }, endCallback = {
-                                        Platform.runLater {
-                                            statusTextProperty.set("")
-                                            // TODO: Do we need that? Highlighting should be done by above callback
-                                            // Only need to change find highlighting, not everything
-                                            // highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), getPageIndex(), showFindProperty.get())
-                                        }
-                                    })
+                                    onFindAllClicked()
                                 }
                                 button("List all") {
                                     enableWhen { vpexExecutor.isRunning.not() }
                                     ViewHelper.fillHorizontal(this)
                                 }.action {
-                                    // TODO: open popup with code snippets of matches
+                                    onListAllClicked()
                                 }
                             }
                             vbox(5) {
@@ -296,6 +276,7 @@ class TabView : Fragment("File") {
                             }
                         }
                     }
+                    // AllFinds Controls
                     fieldset {
                         visibleWhen(allFindsSize.greaterThan(-1))
                         vbox(10) {
@@ -317,19 +298,19 @@ class TabView : Fragment("File") {
                             }
                             hbox(10) {
                                 alignment = Pos.CENTER
-                                button("<<") {
+                                button("<") {
                                     disableWhen {
                                         currentAllFindsDisplayIndex.lessThanOrEqualTo(1)
                                     }
                                 }.action {
-                                    moveToFindIndex(currentAllFindsIndex.get() - 1)
+                                    onLastAllFindClicked()
                                 }
-                                button(">>") {
+                                button(">") {
                                     disableWhen {
                                         currentAllFindsDisplayIndex.greaterThanOrEqualTo(allFindsSize)
                                     }
                                 }.action {
-                                    moveToFindIndex(currentAllFindsIndex.get() + 1)
+                                    onNextAllFindClicked()
                                 }
                             }
                         }
@@ -387,8 +368,47 @@ class TabView : Fragment("File") {
     /* ==============================
     =
     =   Methods available from Main View
+    =   Methods called "on<sth>Clicked" are actions issued from UI Controls. They are public so
+    =       a) the UI can be controlled in tests
+    =       b) we can do programmatically what the user can do manually (e.g. for shortcuts)
     =
      ================================ */
+
+    fun onFindAllClicked() {
+        statusTextProperty.set("Searching")
+        resetFinds()
+        var hasSelectedFind = false
+        searchAll({ finds, _, _ ->
+            Platform.runLater {
+                if (!hasSelectedFind && finds.isNotEmpty()) {
+                    hasSelectedFind = true
+                    moveToFindIndex(0) {
+                        highlightingExcutor.allFinds(codeArea, displayMode.get(), getPageIndex(), allFinds)
+                    }
+                }
+                allFindsSize.set(allFinds.size)
+            }
+        }, endCallback = {
+            Platform.runLater {
+                statusTextProperty.set("")
+                // TODO: Do we need that? Highlighting should be done by above callback
+                // Only need to change find highlighting, not everything
+                // highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), getPageIndex(), showFindProperty.get())
+            }
+        })
+    }
+
+    fun onListAllClicked() {
+        // TODO: open popup with code snippets of matches
+    }
+
+    fun onNextAllFindClicked() {
+        moveToFindIndex(currentAllFindsIndex.get() + 1)
+    }
+
+    fun onLastAllFindClicked() {
+        moveToFindIndex(currentAllFindsIndex.get() - 1)
+    }
 
     fun focusCodeArea() {
         codeArea.requestFocus()
@@ -1184,10 +1204,13 @@ class TabView : Fragment("File") {
         }
     }
 
-    private fun moveToFindIndex(allFindsIndex: Int) {
+    private fun moveToFindIndex(allFindsIndex: Int, callback: (() -> Unit)? = null) {
         val find = allFinds[allFindsIndex]
         moveToFind(find) {
             currentAllFindsIndex.set(allFindsIndex)
+            if (callback != null) {
+                callback()
+            }
         }
     }
 
@@ -1393,6 +1416,7 @@ class TabView : Fragment("File") {
                     this.pageTotalLineCount.set(this.pageTotalLineCount.get() + insertedLines - removedLines)
                 }
 
+                // TODO: Move the following code to a controller
                 // find next => remove highlighting if in removed and change bounds if after removed
                 var findInvalidated = false
                 val removeLength = textChange.removed.length
@@ -1616,30 +1640,6 @@ class TabView : Fragment("File") {
             }
         }
     }
-
-    //    private fun highlightFinds(finds: List<Find>) {
-    //        if (finds.isEmpty()) {
-    //            return
-    //        }
-    //        val localFinds = finds.toList()
-    //        this.hasFindProperty.set(true)
-    //        val pageSize = this.settingsController.getSettings().pageSize
-    //        if (displayMode.get() == DisplayMode.PLAIN) {
-    //            for (find in localFinds) {
-    //                codeArea.setStyle(find.start.toInt(), find.end.toInt(), listOf("searchAllHighlight"))
-    //            }
-    //        } else {
-    //            val pageOffset = this.getPageIndex() * pageSize.toLong()
-    //            for (find in localFinds) {
-    //                if (isInPage(find)) {
-    //                    val start = max(find.start - pageOffset, 0).toInt()
-    //                    val end = min(find.end - pageOffset, pageSize.toLong() - 1).toInt()
-    //                    codeArea.setStyle(start, end, listOf("searchAllHighlight"))
-    //                }
-    //            }
-    //        }
-    //
-    //    }
 
     private fun replaceAll(callback: () -> Unit, endCallback: () -> Unit) {
         val replacementText = this.replaceProperty.get()

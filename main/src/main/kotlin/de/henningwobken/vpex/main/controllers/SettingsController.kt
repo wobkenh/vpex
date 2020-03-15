@@ -44,7 +44,7 @@ class SettingsController : Controller() {
                 trustStorePassword = "",
                 insecure = false,
                 contextMenu = VpexConstants.isWindows,
-                syntaxHighlighting = false,
+                syntaxHighlighting = true,
                 syntaxHighlightingColorScheme = SyntaxHighlightingColorScheme.DEFAULT,
                 startMenu = VpexConstants.isWindows,
                 desktopIcon = VpexConstants.isWindows,
