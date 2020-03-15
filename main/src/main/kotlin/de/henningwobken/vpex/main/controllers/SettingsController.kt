@@ -24,6 +24,34 @@ class SettingsController : Controller() {
     private var openerBasePath: String = "./"
     val settingsProperty = SimpleObjectProperty<Settings>()
 
+    companion object {
+        val DEFAULT_SETTINGS: Settings = Settings(
+                schemaBasePathList = listOf("./"),
+                wrapText = true,
+                prettyPrintIndent = 4,
+                locale = Locale.ENGLISH,
+                pagination = true,
+                pageSize = 500000,
+                paginationThreshold = 30000000,
+                autoUpdate = true,
+                proxyHost = "",
+                proxyPort = null,
+                memoryIndicator = true,
+                saveLock = false,
+                diskPagination = true,
+                diskPaginationThreshold = 500,
+                trustStore = "",
+                trustStorePassword = "",
+                insecure = false,
+                contextMenu = VpexConstants.isWindows,
+                syntaxHighlighting = false,
+                syntaxHighlightingColorScheme = SyntaxHighlightingColorScheme.DEFAULT,
+                startMenu = VpexConstants.isWindows,
+                desktopIcon = VpexConstants.isWindows,
+                ignoreAutoUpdateError = false
+        )
+    }
+
 
     init {
         settings = loadSettings()
@@ -201,32 +229,7 @@ class SettingsController : Controller() {
         HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
     }
 
-    private fun getDefaultSettings(): Settings =
-            Settings(
-                    schemaBasePathList = listOf("./"),
-                    wrapText = true,
-                    prettyPrintIndent = 4,
-                    locale = Locale.ENGLISH,
-                    pagination = true,
-                    pageSize = 500000,
-                    paginationThreshold = 30000000,
-                    autoUpdate = true,
-                    proxyHost = "",
-                    proxyPort = null,
-                    memoryIndicator = true,
-                    saveLock = false,
-                    diskPagination = true,
-                    diskPaginationThreshold = 500,
-                    trustStore = "",
-                    trustStorePassword = "",
-                    insecure = false,
-                    contextMenu = VpexConstants.isWindows,
-                    syntaxHighlighting = false,
-                    syntaxHighlightingColorScheme = SyntaxHighlightingColorScheme.DEFAULT,
-                    startMenu = VpexConstants.isWindows,
-                    desktopIcon = VpexConstants.isWindows,
-                    ignoreAutoUpdateError = false
-            )
+    private fun getDefaultSettings(): Settings = DEFAULT_SETTINGS
 
     private fun validateSettings(settings: Settings) {
         for (schemaBasePath in settings.schemaBasePathList) {

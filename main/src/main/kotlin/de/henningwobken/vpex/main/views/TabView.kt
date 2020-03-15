@@ -57,8 +57,10 @@ class TabView : Fragment("File") {
     val hasFile = SimpleBooleanProperty(false)
     val statusTextProperty = SimpleStringProperty("")
     private var file: File? = null
-    private var codeArea: CodeArea by singleAssign()
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
+
+    // Visible for Testing:
+    var codeArea: CodeArea by singleAssign()
 
     private lateinit var findTextField: TextArea
     private lateinit var replaceTextField: TextArea
@@ -700,20 +702,7 @@ class TabView : Fragment("File") {
      */
     fun requestCloseTab(callback: (() -> Unit)) {
         if (this.isDirty.get()) {
-            alert(Alert.AlertType.CONFIRMATION, "Unsaved changes", "Unsaved changes will be lost if you do not save.\nDo you want to save?", ButtonType.YES, ButtonType.NO, ButtonType.CANCEL, actionFn = {
-                when (it.buttonData.typeCode) {
-                    ButtonType.YES.buttonData.typeCode -> {
-                        saveFileAs {
-                            logger.debug { "Allow close after save @ TabView" }
-                            callback()
-                        }
-                    }
-                    ButtonType.NO.buttonData.typeCode -> {
-                        logger.debug { "Allow close without save @ TabView" }
-                        callback()
-                    }
-                }
-            })
+            alertUnsavedChanges(callback)
         } else {
             callback()
         }
@@ -741,7 +730,7 @@ class TabView : Fragment("File") {
     /**
      * Save the current text to a new file
      */
-    fun saveFileAs(onSaveCallback: (() -> Unit)? = null) {
+    fun saveFileAs(onSaveCallback: (() -> Unit)? = null, onCancelCallback: (() -> Unit)? = null) {
         logger.info("Saving as")
         val fileChooser = FileChooser()
         fileChooser.title = "Save as"
@@ -811,6 +800,10 @@ class TabView : Fragment("File") {
                         onSaveCallback?.let { onSaveCallback() }
                     }
                 }.start()
+            }
+        } else {
+            if (onCancelCallback != null) {
+                onCancelCallback()
             }
         }
     }
@@ -1050,54 +1043,43 @@ class TabView : Fragment("File") {
         logger.info("Moving to page $page with sync direction $syncDirection")
         val pageIndex = page - 1
         val pageSize = settingsController.getSettings().pageSize
-        var newFind: Find? = null
-        var newFindIndex: Int? = null
-        for (index in allFinds.indices) {
-            val allFind = allFinds[index]
-            if (searchAndReplaceController.isInPage(allFind, pageIndex, pageSize)) {
-                newFind = allFind
-                newFindIndex = index
-                break
-            }
-        }
-        if (newFind != null && newFindIndex != null) {
-            val pageOffset = pageSize * pageIndex
-            lastFind = newFind
-            lastFindStart = (newFind.start - pageOffset).toInt()
-            lastFindEnd = (newFind.end - pageOffset).toInt()
-            currentAllFindsIndex.set(newFindIndex)
-        } else {
-            lastFindStart = 0
-            lastFindEnd = 0
-            lastFind = Find(0L, 0L)
-            hasFindProperty.set(false)
-            showedEndOfFileDialog = false
-            // TODO: Set index to last index before this page
-            // currentAllFindsIndex.set(-1)
-        }
+        showedEndOfFileDialog = false
 
+        // How many characters the new page ist before or after the current page
+        val characterDeltaOffset = page - this.page.get()
+        lastFindStart += characterDeltaOffset
+        lastFindEnd += characterDeltaOffset
 
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
 
-            var wantsToSave = false
+            var askingIfUserWantsToSave = false
+            var wantsToCancel = false
             var saveDone = false
 
             // TO_CODEAREA signals that the fulltext (i.e. the file) has changed
             // Therefore, we only need to save in TO_FULLTEXT direction (e.g. when the user changes sth that is not saved yet)
             if (dirtySinceLastSync && syncDirection == SyncDirection.TO_FULLTEXT) {
                 logger.warn { "Changes will be lost." }
-                confirm("Unsaved changes", "Unsaved changes will be lost if you do not save.\nDo you want to save?", ButtonType.YES, actionFn = {
-                    wantsToSave = true
-                    saveFileAs { saveDone = true }
+                askingIfUserWantsToSave = true
+                alertUnsavedChanges(proceedCallback = {
+                    saveDone = true
+                }, cancelCallback = {
+                    saveDone = true
+                    wantsToCancel = true
                 })
             }
 
             val mainView = this
             runAsync {
-                if (wantsToSave) {
+                if (askingIfUserWantsToSave) {
                     while (!saveDone) {
                         Thread.sleep(40)
                     }
+                }
+
+                if (wantsToCancel) {
+                    // do not call callback as page will not be switched
+                    return@runAsync
                 }
 
                 // At this point we can assume that the file content is up to date
@@ -1113,7 +1095,7 @@ class TabView : Fragment("File") {
                     String(buffer, 0, read)
                 } else {
                     // load specific page
-                    val startByteIndex = mainView.pageStartingByteIndexes[page - 1]
+                    val startByteIndex = mainView.pageStartingByteIndexes[pageIndex]
                     val endByteIndex = if (page >= mainView.pageStartingByteIndexes.size) {
                         file.length()
                     } else {
@@ -1137,7 +1119,7 @@ class TabView : Fragment("File") {
                     mainView.isDirty.set(false) // Changes were either saved or discarded
                     replaceText(text)
                     mainView.page.set(page)
-                    highlightEverything(page - 1)
+                    highlightEverything(pageIndex)
                     if (callback != null) {
                         callback()
                     }
@@ -1561,24 +1543,6 @@ class TabView : Fragment("File") {
 
     // Search and replace functions
 
-    // TODO: Remove when syntax highlighting works
-    //    private fun removeFindHighlighting() {
-    //        if (codeArea.length > 0) {
-    //            if (settingsController.getSettings().syntaxHighlighting) {
-    //                codeArea.setStyleSpans(0, xmlSyntaxHighlightingController.computeHighlighting(codeArea.text))
-    //            } else {
-    //                this.codeArea.clearStyle(0, codeArea.length - 1)
-    //            }
-    //            if (allFinds.isNotEmpty()) {
-    //                highlightFinds(allFinds)
-    //            }
-    //        }
-    //        this.hasFindProperty.set(false)
-    //        this.lastFindStart = 0
-    //        this.lastFindEnd = 0
-    //        this.lastFind = Find(0L, 0L)
-    //    }
-
     /**
      * Searches through the whole text in search for the current search term.
      * All finds will be added to {@see #allFinds}.
@@ -1882,4 +1846,33 @@ class TabView : Fragment("File") {
     private fun highlightEverything(pageIndex: Int = 0) {
         highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), pageIndex, showFindProperty.get())
     }
+
+    private fun alertUnsavedChanges(proceedCallback: () -> Unit, cancelCallback: (() -> Unit)? = null) {
+        alert(Alert.AlertType.CONFIRMATION, "Unsaved changes", "Unsaved changes will be lost if you do not save.\nDo you want to save?", ButtonType.YES, ButtonType.NO, ButtonType.CANCEL, actionFn = {
+            when (it.buttonData.typeCode) {
+                ButtonType.YES.buttonData.typeCode -> {
+                    saveFileAs(onSaveCallback = {
+                        logger.debug { "Saved unsaved changes" }
+                        proceedCallback()
+                    }, onCancelCallback = {
+                        logger.debug { "Cancelled saving unsaved changes" }
+                        if (cancelCallback != null) {
+                            cancelCallback()
+                        }
+                    })
+                }
+                ButtonType.NO.buttonData.typeCode -> {
+                    logger.debug { "Drop unsaved changes" }
+                    proceedCallback()
+                }
+                ButtonType.YES.buttonData.typeCode -> {
+                    logger.debug { "Cancel @ Unsaved Changes Dialog" }
+                    if (cancelCallback != null) {
+                        cancelCallback()
+                    }
+                }
+            }
+        })
+    }
+
 }
