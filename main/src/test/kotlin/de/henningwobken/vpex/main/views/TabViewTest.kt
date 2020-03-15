@@ -19,7 +19,7 @@ import javax.swing.SwingUtilities
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 internal class TabViewTest {
 
-    val settingsController = Mockito.mock(SettingsController::class.java)
+    private val settingsController = Mockito.mock(SettingsController::class.java)
 
     private val scope = Scope(
             StringUtils(),
