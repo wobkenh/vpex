@@ -15,7 +15,7 @@ class VpexExecutor : Controller() {
     private var shouldShutdown = false
 
     init {
-        Thread {
+        Thread({
             while (true) {
                 synchronized(lock) {
                     if (shouldShutdown) {
@@ -49,7 +49,7 @@ class VpexExecutor : Controller() {
                 }
                 Thread.sleep(100)
             }
-        }.start()
+        }, "VpexExecutor").start()
     }
 
     fun execute(runnable: () -> Unit) {

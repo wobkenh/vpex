@@ -4,6 +4,7 @@ import de.henningwobken.vpex.main.controllers.ExpectedClass
 import de.henningwobken.vpex.main.controllers.ExpectedStyles
 import org.fxmisc.richtext.CodeArea
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.mockito.Mockito
 import java.io.File
 
 class TestUtils {
@@ -47,6 +48,14 @@ class TestUtils {
 
             assertEquals(expectedStyles.size, styleSpans.spanCount)
         }
+
+        fun <T> nullsafeAny(): T {
+            Mockito.any<T>()
+            return uninitialized()
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        private fun <T> uninitialized(): T = null as T
 
     }
 }

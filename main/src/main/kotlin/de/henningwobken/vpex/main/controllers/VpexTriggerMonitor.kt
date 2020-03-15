@@ -38,7 +38,7 @@ class VpexTriggerMonitor : Controller() {
         logger.info("Starting as process nr ${otherProcessCount + 1}")
         Files.write(statusFile.toPath(), listOf((otherProcessCount + 1).toString()))
         // TODO: Share this with FileWatcher/MemoryMonitor/...
-        Thread {
+        Thread({
             while (true) {
                 if (shutdown) {
                     break
@@ -62,7 +62,7 @@ class VpexTriggerMonitor : Controller() {
                 Thread.sleep(200)
             }
             logger.info("VpexTriggerMonitor shut down")
-        }.start()
+        }, "VpexTriggerMonitor").start()
     }
 
     private fun createReceiveScriptFile() {
