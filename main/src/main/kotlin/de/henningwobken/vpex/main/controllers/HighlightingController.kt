@@ -27,10 +27,10 @@ class HighlightingController : Controller() {
     }
 
     fun nextFind(codeArea: CodeArea, oldFindStart: Int, oldFindEnd: Int, newFindStart: Int, newFindEnd: Int) {
-        if (oldFindEnd > 0) {
-            // TODO: oldFindEnd higher than page size when disk pagination
-            //       Write unit test for that
-            unhighlight(codeArea, oldFindStart, oldFindEnd, CURRENT_FIND)
+        if (oldFindEnd > 0 && oldFindStart < codeArea.text.length) {
+            val correctedOldFindStart = if (oldFindStart < 0) 0 else oldFindStart
+            val correctedOldFindEnd = if (oldFindEnd > codeArea.text.length) codeArea.text.length else oldFindEnd
+            unhighlight(codeArea, correctedOldFindStart, correctedOldFindEnd, CURRENT_FIND)
         }
         // We do not call apllyFindHighlight/highlightFind because the place where this is called already has
         // the indices calculated to be in page, not in file

@@ -339,6 +339,154 @@ internal class TabViewTest {
 
     // endregion navigate through all finds
 
+    // region navigate via find next
+
+    @Test
+    fun navigateViaFindNextPlain() {
+        val tabView = initTabView(SettingsController.DEFAULT_SETTINGS.copy(
+                pagination = false,
+                diskPagination = false,
+                syntaxHighlighting = true
+        ))
+        val file = writeFile(listOf("<test>a</test>"))
+        tabView.openFile(file)
+        tabView.openSearch()
+        tabView.findTextField.text = "test"
+
+        tabView.onFindNextClicked()
+        Thread.sleep(100)
+
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(1, ANYDATA),
+                ExpectedStyles(2, TAGMARK),
+                ExpectedStyles(4, ANYTAG),
+                ExpectedStyles(2, TAGMARK)
+        ), tabView.codeArea)
+
+        tabView.onFindNextClicked()
+        Thread.sleep(100)
+
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(4, ANYTAG),
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(1, ANYDATA),
+                ExpectedStyles(2, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(2, TAGMARK)
+        ), tabView.codeArea)
+
+        tabView.onFindNextClicked(reverse = true)
+        Thread.sleep(100)
+
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(1, ANYDATA),
+                ExpectedStyles(2, TAGMARK),
+                ExpectedStyles(4, ANYTAG),
+                ExpectedStyles(2, TAGMARK)
+        ), tabView.codeArea)
+
+    }
+
+    @Test
+    fun navigateViaNextFindPagination() {
+        val tabView = initTabView(SettingsController.DEFAULT_SETTINGS.copy(
+                pagination = true,
+                paginationThreshold = 1,
+                pageSize = 7,
+                diskPagination = false,
+                syntaxHighlighting = true
+        ))
+        val file = writeFile(listOf("<test>a</test>"))
+        tabView.openFile(file)
+        tabView.openSearch()
+        tabView.findTextField.text = "test"
+
+        tabView.onFindNextClicked()
+        Thread.sleep(100)
+
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(1, ANYDATA)
+        ), tabView.codeArea)
+
+        tabView.onFindNextClicked()
+        Thread.sleep(100)
+
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(2, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(1, TAGMARK)
+        ), tabView.codeArea)
+
+        tabView.onFindNextClicked(reverse = true)
+        Thread.sleep(100)
+
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(1, ANYDATA)
+        ), tabView.codeArea)
+    }
+
+    @Test
+    fun navigateViaFindNextPagination() {
+        val tabView = initTabView(SettingsController.DEFAULT_SETTINGS.copy(
+                diskPagination = true,
+                diskPaginationThreshold = 0,
+                pageSize = 7,
+                syntaxHighlighting = true
+        ))
+        val file = writeFile(listOf("<test>a</test>"))
+        tabView.openFile(file)
+
+        Thread.sleep(100)
+
+        tabView.openSearch()
+        tabView.findTextField.text = "test"
+
+        tabView.onFindNextClicked()
+        Thread.sleep(100)
+
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(1, ANYDATA)
+        ), tabView.codeArea)
+
+        tabView.onFindNextClicked()
+        Thread.sleep(100)
+
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(2, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(1, TAGMARK)
+        ), tabView.codeArea)
+
+        tabView.onFindNextClicked(reverse = true)
+        Thread.sleep(100)
+
+        assertEquals(1, tabView.page.get())
+        TestUtils.checkStyle(listOf(
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
+                ExpectedStyles(1, TAGMARK),
+                ExpectedStyles(1, ANYDATA)
+        ), tabView.codeArea)
+    }
+
+    // endregion navigate via find next
+
     // region helper methods
 
     private fun writeFile(lines: List<String>): File {

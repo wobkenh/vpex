@@ -138,10 +138,10 @@ class TabView : Fragment("File") {
                                                 findTextField.text = text.substring(0, index) + System.lineSeparator()
                                                 findTextField.positionCaret(index + 1)
                                             } else {
-                                                findNext(reverse = true)
+                                                onFindNextClicked(reverse = true)
                                             }
                                         } else {
-                                            findNext()
+                                            onFindNextClicked()
                                         }
                                     } else if (it.code == KeyCode.TAB) {
                                         it.consume()
@@ -216,7 +216,7 @@ class TabView : Fragment("File") {
                                 button("Find next") {
                                     ViewHelper.fillHorizontal(this)
                                 }.action {
-                                    findNext()
+                                    onFindNextClicked()
                                 }
                                 button("Find all") {
                                     id = "findAll"
@@ -396,6 +396,28 @@ class TabView : Fragment("File") {
                 // highlightingExcutor.highlightEverything(codeArea, allFinds, lastFind, displayMode.get(), getPageIndex(), showFindProperty.get())
             }
         })
+    }
+
+    fun onFindNextClicked(reverse: Boolean = false) {
+        if (showedEndOfFileDialog) {
+            showedEndOfFileDialog = false
+            if (showedEndOfFileDialogCaretPosition == codeArea.caretPosition) {
+                if ((searchDirection.get() == SearchDirection.DOWN && !reverse) || (searchDirection.get() == SearchDirection.UP && reverse)) {
+                    moveToIndex(0) {
+                        findNextFromCurrentCaretPosition(reverse)
+                    }
+                } else {
+                    // TODO: Fix me
+                    moveToLineColumn(this.lineCount.get(), 0) {
+                        findNextFromCurrentCaretPosition(reverse)
+                    }
+                }
+            } else {
+                findNextFromCurrentCaretPosition(reverse)
+            }
+        } else {
+            findNextFromCurrentCaretPosition(reverse)
+        }
     }
 
     fun onListAllClicked() {
@@ -1713,28 +1735,6 @@ class TabView : Fragment("File") {
                     logger.debug("Text replaced")
                 }
             }, endCallback = endCallback)
-        }
-    }
-
-    private fun findNext(reverse: Boolean = false) {
-        if (showedEndOfFileDialog) {
-            showedEndOfFileDialog = false
-            if (showedEndOfFileDialogCaretPosition == codeArea.caretPosition) {
-                if ((searchDirection.get() == SearchDirection.DOWN && !reverse) || (searchDirection.get() == SearchDirection.UP && reverse)) {
-                    moveToIndex(0) {
-                        findNextFromCurrentCaretPosition()
-                    }
-                } else {
-                    // TODO: Fix me
-                    moveToLineColumn(this.lineCount.get(), 0) {
-                        findNextFromCurrentCaretPosition()
-                    }
-                }
-            } else {
-                findNextFromCurrentCaretPosition()
-            }
-        } else {
-            findNextFromCurrentCaretPosition()
         }
     }
 
