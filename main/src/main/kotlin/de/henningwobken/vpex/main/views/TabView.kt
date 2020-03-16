@@ -1066,9 +1066,10 @@ class TabView : Fragment("File") {
         showedEndOfFileDialog = false
 
         // How many characters the new page ist before or after the current page
-        val characterDeltaOffset = page - this.page.get()
-        lastFindStart += characterDeltaOffset
-        lastFindEnd += characterDeltaOffset
+        // e.g. next page with page size 50000 => 50000
+        val characterDeltaOffset = (page - this.page.get()) * pageSize
+        lastFindStart -= characterDeltaOffset
+        lastFindEnd -= characterDeltaOffset
 
         if (displayMode.get() == DisplayMode.DISK_PAGINATION) {
 
@@ -1376,7 +1377,7 @@ class TabView : Fragment("File") {
         codeArea.selectionProperty().onChange {
             selectionLength.set(it?.length ?: 0)
             if (it != null && it.length > 0) {
-                logger.debug { "Selection changed: $it" }
+                logger.trace { "Selection changed: $it" }
                 val substring = this.getFullText().substring(it.start, it.end)
                 selectionLines.set(stringUtils.countLinesInString(substring))
             } else {

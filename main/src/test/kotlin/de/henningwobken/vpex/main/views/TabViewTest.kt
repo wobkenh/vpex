@@ -138,7 +138,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1)
+                ExpectedStyles(1, ANYDATA)
         ), tabView.codeArea)
         tabView.moveToPage(2)
         TestUtils.checkStyle(listOf(
@@ -163,7 +163,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1)
+                ExpectedStyles(1, ANYDATA)
         ), tabView.codeArea)
         tabView.moveToPage(2)
         Thread.sleep(100)
@@ -206,7 +206,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1),
+                ExpectedStyles(1, ANYDATA),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT),
                 ExpectedStyles(2, TAGMARK)
@@ -220,7 +220,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1),
+                ExpectedStyles(1, ANYDATA),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(2, TAGMARK)
@@ -234,7 +234,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1),
+                ExpectedStyles(1, ANYDATA),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT),
                 ExpectedStyles(2, TAGMARK)
@@ -263,7 +263,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1)
+                ExpectedStyles(1, ANYDATA)
         ), tabView.codeArea)
 
         tabView.onNextAllFindClicked()
@@ -284,7 +284,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1)
+                ExpectedStyles(1, ANYDATA)
         ), tabView.codeArea)
     }
 
@@ -311,7 +311,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1)
+                ExpectedStyles(1, ANYDATA)
         ), tabView.codeArea)
 
         tabView.onNextAllFindClicked()
@@ -333,7 +333,7 @@ internal class TabViewTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(1)
+                ExpectedStyles(1, ANYDATA)
         ), tabView.codeArea)
     }
 

@@ -269,7 +269,7 @@ class SettingsView : View("VPEX - Einstellungen") {
                         }
                     }
                     field("Use insecure connection / Ignore SSL") {
-                        checkbox("WARNING: This can be a major security risk.", insecureProperty)
+                        checkbox("WARNING: This can be a security risk.", insecureProperty)
                     }
                     field("Version") {
                         label(updateController.currentVersion)

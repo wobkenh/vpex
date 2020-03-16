@@ -1,0 +1,64 @@
+.tagmark {
+    -fx-fill: black;
+    -rtfx-background-color: #EFEFEF;
+}
+
+.anytag {
+    -fx-fill: #020080;
+    -rtfx-background-color: #EFEFEF;
+    -fx-font-weight: bold;
+}
+
+.anynamespace {
+    -fx-fill: #660E7A;
+    -fx-font-weight: bold;
+    -rtfx-background-color: #EFEFEF;
+}
+
+.attribute {
+    -fx-fill: #0000FF;
+    -fx-font-weight: bold;
+    -rtfx-background-color: #EFEFEF;
+}
+
+.attributenamespace {
+    -fx-fill: #660E7A;
+    -fx-font-weight: bold;
+    -rtfx-background-color: #EFEFEF;
+}
+
+.betweenattributes {
+    -rtfx-background-color: #EFEFEF;
+}
+
+.avalue {
+    -fx-fill: #008000;
+    -fx-font-weight: bold;
+    -rtfx-background-color: #EFEFEF;
+}
+
+.comment {
+    -fx-fill: #808080;
+}
+
+.cdatadata {
+    -fx-fill: black;
+}
+
+.cdatatag {
+    -fx-fill: black;
+}
+
+.paragraph-box:has-caret {
+    -fx-background-color: #FFFAE3 !important;
+}
+
+/*
+TODO: Does not work as expected - repainting issues
+.paragraph-box:has-caret .tagmark {
+    -rtfx-background-color: #99CCFF;
+}
+*/
+
+
+

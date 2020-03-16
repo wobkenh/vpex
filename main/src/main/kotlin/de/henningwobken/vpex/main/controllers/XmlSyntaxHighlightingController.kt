@@ -41,7 +41,7 @@ class XmlSyntaxHighlightingController : Controller() {
         var lastKwEnd = 0
         val spansBuilder = StyleSpansBuilder<Collection<String>>()
         while (matcher.find()) {
-            spansBuilder.add(mutableListOf(), matcher.start() - lastKwEnd)
+            spansBuilder.add(mutableListOf("anydata"), matcher.start() - lastKwEnd)
             when {
                 matcher.group("COMMENT") != null -> {
                     spansBuilder.add(mutableListOf("comment"), matcher.end() - matcher.start())
@@ -65,7 +65,7 @@ class XmlSyntaxHighlightingController : Controller() {
                         lastKwEnd = 0
                         val amatcher = ATTRIBUTES.matcher(attributesText)
                         while (amatcher.find()) {
-                            spansBuilder.add(mutableListOf(), amatcher.start() - lastKwEnd)
+                            spansBuilder.add(mutableListOf("betweenattributes"), amatcher.start() - lastKwEnd)
                             if (matcher.end(GROUP_ATTRIBUTE_NAMESPACE) >= 0) {
                                 spansBuilder.add(mutableListOf("attributenamespace"), amatcher.end(GROUP_ATTRIBUTE_NAMESPACE) - amatcher.start(GROUP_ATTRIBUTE_NAMESPACE))
                             }
@@ -75,7 +75,7 @@ class XmlSyntaxHighlightingController : Controller() {
                             lastKwEnd = amatcher.end()
                         }
                         if (attributesText.length > lastKwEnd) {
-                            spansBuilder.add(mutableListOf(), attributesText.length - lastKwEnd)
+                            spansBuilder.add(mutableListOf("betweenattributes"), attributesText.length - lastKwEnd)
                         }
                     }
                     lastKwEnd = matcher.end(GROUP_ATTRIBUTES_SECTION)
@@ -85,7 +85,7 @@ class XmlSyntaxHighlightingController : Controller() {
 
             lastKwEnd = matcher.end()
         }
-        spansBuilder.add(mutableListOf(), text.length - lastKwEnd)
+        spansBuilder.add(mutableListOf("anydata"), text.length - lastKwEnd)
         return spansBuilder.create()
     }
 }

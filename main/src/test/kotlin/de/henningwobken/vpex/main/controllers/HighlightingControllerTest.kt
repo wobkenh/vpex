@@ -29,10 +29,10 @@ internal class HighlightingControllerTest {
                 ExpectedStyles(1, TAGMARK), // <
                 ExpectedStyles(4, ANYTAG),  // test
                 ExpectedStyles(1, TAGMARK), // >
-                ExpectedStyles(4),          // test
+                ExpectedStyles(4, ANYDATA), // test
                 ExpectedStyles(2, TAGMARK), // </
                 ExpectedStyles(1, ANYTAG),  // t
-                ExpectedStyles(4),          // " est"
+                ExpectedStyles(4, BETWEENATTRIBUTES), // " est"
                 ExpectedStyles(1, TAGMARK)  // >
         ), codeArea)
     }
@@ -51,7 +51,7 @@ internal class HighlightingControllerTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(4, SEARCH_ALL_HIGHLIGHT),
+                ExpectedStyles(4, ANYDATA, SEARCH_ALL_HIGHLIGHT),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK)
@@ -94,7 +94,7 @@ internal class HighlightingControllerTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(4),
+                ExpectedStyles(4, ANYDATA),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK)
@@ -116,7 +116,7 @@ internal class HighlightingControllerTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(4, SEARCH_ALL_HIGHLIGHT),
+                ExpectedStyles(4, ANYDATA, SEARCH_ALL_HIGHLIGHT),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_ALL_HIGHLIGHT, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK)
@@ -167,7 +167,7 @@ internal class HighlightingControllerTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(4, NONE),
+                ExpectedStyles(4, ANYDATA),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK)
@@ -179,7 +179,7 @@ internal class HighlightingControllerTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(4, NONE),
+                ExpectedStyles(4, ANYDATA),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK)
@@ -191,7 +191,7 @@ internal class HighlightingControllerTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(4, SEARCH_HIGHLIGHT),
+                ExpectedStyles(4, ANYDATA, SEARCH_HIGHLIGHT),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK)
@@ -203,7 +203,7 @@ internal class HighlightingControllerTest {
                 ExpectedStyles(1, TAGMARK),
                 ExpectedStyles(4, ANYTAG),
                 ExpectedStyles(1, TAGMARK),
-                ExpectedStyles(4, NONE),
+                ExpectedStyles(4, ANYDATA),
                 ExpectedStyles(2, TAGMARK),
                 ExpectedStyles(4, ANYTAG, SEARCH_HIGHLIGHT),
                 ExpectedStyles(1, TAGMARK)

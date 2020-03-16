@@ -1,0 +1,61 @@
+.styled-text-area {
+    -fx-background-color: #2B2B2B;
+}
+
+.paragraph-box:has-caret {
+    -fx-background-color: #323232 !important;
+}
+
+.caret {
+    -fx-stroke: #CACACA !important;
+    -fx-stroke-width: 2px !important;
+}
+
+.styled-text-area .selection {
+    -fx-fill: #214283;
+}
+
+.betweenattributes {
+    -fx-fill: #BABABA;
+}
+
+.anydata {
+    -fx-fill: #BABABA;
+}
+
+.tagmark {
+    -fx-fill: #D9BE6A;
+}
+
+.anytag {
+    -fx-fill: #D9BE6A;
+}
+
+.anynamespace {
+    -fx-fill: #9876AA;
+}
+
+.attribute {
+    -fx-fill: #BABABA;
+}
+
+.attributenamespace {
+    -fx-fill: #9876AA;
+}
+
+.avalue {
+    -fx-fill: #6A8759;
+}
+
+.comment {
+    -fx-fill: #808080;
+}
+
+.cdatadata {
+    -fx-fill: #BABABA;
+}
+
+.cdatatag {
+    -fx-fill: #BABABA;
+}
+

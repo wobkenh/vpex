@@ -15,6 +15,8 @@ enum class InternalResource(val filename: String) {
     EDITOR_CSS("editor.css"), //
     SYNTAX_DEFAULT_CSS("syntax-default.css"), //
     SYNTAX_NOTEPAD_CSS("syntax-notepad.css"), //
+    SYNTAX_INTELLIJ_CSS("syntax-intellij.css"), //
+    SYNTAX_DRACULA_CSS("syntax-dracula.css"), //
     TEXTAREA_CSS("textarea.css"), //
     TABPANE_CSS("tabpane.css"), //
 

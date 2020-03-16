@@ -28,6 +28,8 @@ class HighlightingController : Controller() {
 
     fun nextFind(codeArea: CodeArea, oldFindStart: Int, oldFindEnd: Int, newFindStart: Int, newFindEnd: Int) {
         if (oldFindEnd > 0) {
+            // TODO: oldFindEnd higher than page size when disk pagination
+            //       Write unit test for that
             unhighlight(codeArea, oldFindStart, oldFindEnd, CURRENT_FIND)
         }
         // We do not call apllyFindHighlight/highlightFind because the place where this is called already has

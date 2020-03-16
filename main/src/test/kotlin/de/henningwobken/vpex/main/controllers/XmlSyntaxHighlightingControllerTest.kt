@@ -29,49 +29,49 @@ internal class XmlSyntaxHighlightingControllerTest {
         val expectedStyles = listOf(
                 ExpectedStyle(2, TAGMARK),          // <?
                 ExpectedStyle(3, ANYTAG),           // xml
-                ExpectedStyle(1, NONE),             // " "
+                ExpectedStyle(1, BETWEENATTRIBUTES),// " "
                 ExpectedStyle(7, ATTRIBUTE),        // version
                 ExpectedStyle(1, TAGMARK),          // =
                 ExpectedStyle(5, AVALUE),           // "1.0"
-                ExpectedStyle(1, NONE),             // " "
+                ExpectedStyle(1, BETWEENATTRIBUTES),// " "
                 ExpectedStyle(8, ATTRIBUTE),        // encoding
                 ExpectedStyle(1, TAGMARK),          // =
                 ExpectedStyle(7, AVALUE),           // "UTF-8"
                 ExpectedStyle(2, TAGMARK),          // ?>
-                ExpectedStyle(1, NONE),             // \n
+                ExpectedStyle(1, ANYDATA),             // \n
                 ExpectedStyle(1, TAGMARK),          // <
                 ExpectedStyle(9, ANYTAG),           // shiporder
-                ExpectedStyle(1, NONE),             // " "
+                ExpectedStyle(1, BETWEENATTRIBUTES),// " "
                 ExpectedStyle(6, ATTRIBUTENAMESPACE),// xmlns:
                 ExpectedStyle(3, ATTRIBUTE),        // xsi
                 ExpectedStyle(1, TAGMARK),          // =
                 ExpectedStyle(43, AVALUE),          // "http://www.w3.org/2001/XMLSchema-instance"
-                ExpectedStyle(1, NONE),             // " "
+                ExpectedStyle(1, BETWEENATTRIBUTES),// " "
                 ExpectedStyle(4, ATTRIBUTENAMESPACE),// xsi:
                 ExpectedStyle(25, ATTRIBUTE),       // noNamespaceSchemaLocation
                 ExpectedStyle(1, TAGMARK),          // =
                 ExpectedStyle(15, AVALUE),          // "shiporder.xsd"
-                ExpectedStyle(1, NONE),             // " "
+                ExpectedStyle(1, BETWEENATTRIBUTES),// " "
                 ExpectedStyle(7, ATTRIBUTE),        // orderid
                 ExpectedStyle(1, TAGMARK),          // =
                 ExpectedStyle(8, AVALUE),           // "889923"
                 ExpectedStyle(1, TAGMARK),          // >
-                ExpectedStyle(5, NONE),             // \n"    "
+                ExpectedStyle(5, ANYDATA),             // \n"    "
                 ExpectedStyle(30, COMMENT),         // <!-- The person to ship to -->
-                ExpectedStyle(5, NONE),             // \n"    "
+                ExpectedStyle(5, ANYDATA),             // \n"    "
                 ExpectedStyle(1, TAGMARK),          // <
                 ExpectedStyle(4, ANYNAMESPACE),     // xsi:
                 ExpectedStyle(6, ANYTAG),           // shipto
                 ExpectedStyle(1, TAGMARK),          // >
-                ExpectedStyle(6, NONE),             // \n"    "\t
+                ExpectedStyle(6, ANYDATA),             // \n"    "\t
                 ExpectedStyle(1, TAGMARK),          // <
                 ExpectedStyle(4, ANYTAG),           // name
                 ExpectedStyle(1, TAGMARK),          // >
-                ExpectedStyle(12, NONE),            // Ola Nordmann
+                ExpectedStyle(12, ANYDATA),            // Ola Nordmann
                 ExpectedStyle(2, TAGMARK),          // </
                 ExpectedStyle(4, ANYTAG),           // name
                 ExpectedStyle(1, TAGMARK),          // >
-                ExpectedStyle(9, NONE),             // \n"        "
+                ExpectedStyle(9, ANYDATA),             // \n"        "
                 ExpectedStyle(1, TAGMARK),          // <
                 ExpectedStyle(11, ANYTAG),          // description
                 ExpectedStyle(1, TAGMARK),          // >
@@ -81,12 +81,12 @@ internal class XmlSyntaxHighlightingControllerTest {
                 ExpectedStyle(2, TAGMARK),          // </
                 ExpectedStyle(11, ANYTAG),          // description
                 ExpectedStyle(1, TAGMARK),          // >
-                ExpectedStyle(5, NONE),             // \n"    "
+                ExpectedStyle(5, ANYDATA),             // \n"    "
                 ExpectedStyle(2, TAGMARK),          // </
                 ExpectedStyle(4, ANYNAMESPACE),     // xsi:
                 ExpectedStyle(6, ANYTAG),           // shipto
                 ExpectedStyle(1, TAGMARK),          // >
-                ExpectedStyle(1, NONE),             // \n
+                ExpectedStyle(1, ANYDATA),             // \n
                 ExpectedStyle(2, TAGMARK),          // </
                 ExpectedStyle(9, ANYTAG),           // shiporder
                 ExpectedStyle(1, TAGMARK)           // >
@@ -95,20 +95,21 @@ internal class XmlSyntaxHighlightingControllerTest {
         for (index in expectedStyles.indices) {
             val actual = result.getStyleSpan(index)
             val expected = expectedStyles[index]
-            checkStyle(expected, actual)
+            checkStyle(expected, actual, index)
         }
 
         assertEquals(expectedStyles.size, result.spanCount)
     }
 
-    private fun checkStyle(expectedStyleSpan: ExpectedStyle, actualStyleSpan: StyleSpan<Collection<String>>) {
+    private fun checkStyle(expectedStyleSpan: ExpectedStyle, actualStyleSpan: StyleSpan<Collection<String>>, index: Int) {
+        val failMessage = "expected $expectedStyleSpan but was $actualStyleSpan at index $index"
         if (expectedStyleSpan.style == NONE) {
-            assertEquals(0, actualStyleSpan.style.size)
+            assertEquals(0, actualStyleSpan.style.size, failMessage)
         } else {
-            assertEquals(1, actualStyleSpan.style.size)
+            assertEquals(1, actualStyleSpan.style.size, failMessage)
             assertEquals(expectedStyleSpan.style.name.toLowerCase(), actualStyleSpan.style.first())
         }
-        assertEquals(expectedStyleSpan.length, actualStyleSpan.length)
+        assertEquals(expectedStyleSpan.length, actualStyleSpan.length, failMessage)
     }
 
 }
