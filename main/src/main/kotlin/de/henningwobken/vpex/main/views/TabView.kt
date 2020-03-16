@@ -353,7 +353,7 @@ class TabView : Fragment("File") {
 
         if (oldSettings != null && newSettings != null) {
             if (oldSettings.syntaxHighlightingColorScheme != newSettings.syntaxHighlightingColorScheme) {
-                codeArea.stylesheets.clear()
+                resetStylesheetsToCodearea()
                 addStylesheetsToCodearea()
             }
             if (oldSettings.syntaxHighlighting != newSettings.syntaxHighlighting) {
@@ -1549,6 +1549,13 @@ class TabView : Fragment("File") {
         lastFindEnd = 0
         lastFind = Find(0L, 0L)
         hasFindProperty.set(false)
+    }
+
+    private fun resetStylesheetsToCodearea() {
+        val newStylesheets = this.codeArea.stylesheets
+                .filter { it.contains("code-area.css") || it.contains("styled-text-area.css") }
+        this.codeArea.stylesheets.clear()
+        this.codeArea.stylesheets.addAll(newStylesheets)
     }
 
     private fun addStylesheetsToCodearea() {
