@@ -35,6 +35,7 @@ class StatusBarView : View() {
     // Main-specific
 
     private val downloadProgressProperty = SimpleDoubleProperty(-1.0)
+    private val downloadStatusProperty = SimpleStringProperty("")
 
 
     // Tab-specific
@@ -126,6 +127,9 @@ class StatusBarView : View() {
                     vpexExecutor.cancel()
                     tabViewStatusTextProperty.set("")
                     tabViewFileProgressProperty.set(-1.0)
+                }
+                label(downloadStatusProperty) {
+                    removeWhen(downloadStatusProperty.eq(""))
                 }
                 progressbar(downloadProgressProperty) {
                     removeWhen(downloadProgressProperty.lessThan(0))
@@ -307,6 +311,10 @@ class StatusBarView : View() {
         showMonitorThread.set(settingsController.getSettings().memoryIndicator)
     }
 
+    fun bindDownloadProperties(downloadProgressProperty: SimpleDoubleProperty, downloadStatusProperty: SimpleStringProperty) {
+        this.downloadProgressProperty.bind(downloadProgressProperty)
+        this.downloadStatusProperty.bind(downloadStatusProperty)
+    }
 
     fun bind(tabView: TabView) {
         logger.debug { "Binding to tab view for file ${tabView.getFile()?.absolutePath}" }

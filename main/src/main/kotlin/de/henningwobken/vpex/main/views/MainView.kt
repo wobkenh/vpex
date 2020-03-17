@@ -62,11 +62,13 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
         if (settingsController.getSettings().desktopIcon) {
             windowsLinkController.addVpexDesktopIcon()
         }
+        statusBarView.bindDownloadProperties(downloadProgressProperty, statusTextProperty)
         if (settingsController.getSettings().autoUpdate) {
             statusTextProperty.set("Checking for updates")
             Thread {
                 updateController.updateRoutine(downloadStartedCallback = {
                     Platform.runLater {
+                        logger.debug { "Starting download" }
                         statusTextProperty.set("Downloading updates")
                         downloadProgressProperty.set(0.0)
                     }
@@ -75,6 +77,7 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                         downloadProgressProperty.set(progress / (max * 1.0))
                     }
                 }, downloadFinishedCallback = {
+                    logger.debug { "Download finished" }
                     Platform.runLater {
                         downloadProgressProperty.set(-1.0)
                         statusTextProperty.set("")
