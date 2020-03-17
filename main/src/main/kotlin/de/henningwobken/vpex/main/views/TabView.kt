@@ -895,7 +895,7 @@ class TabView : Fragment("File") {
             val fullText = file.readText()
             if (this.settingsController.getSettings().pagination
                     && fullText.length > settingsController.getSettings().paginationThreshold) {
-                this.fullText = fullText
+                this.fullText = fullText.replace("\r\n", "\n")
                 logger.info { "Opening file in pagination mode" }
                 displayMode.set(DisplayMode.PAGINATION)
                 dirtySinceLastSync = true
@@ -1672,7 +1672,7 @@ class TabView : Fragment("File") {
                         break
                     }
                     totalBytesRead += read
-                    val string = String(buffer, 0, read)
+                    val string = String(buffer, 0, read).replace("\r\n", "\n")
                     val finds = searchAndReplaceController.findAll(string, searchText, interpreterMode, ignoreCase)
                             .map { find -> Find(find.start + startCharIndex, find.end + startCharIndex) }
                             .filter { find -> !allFinds.contains(find) } // Filter Duplicates

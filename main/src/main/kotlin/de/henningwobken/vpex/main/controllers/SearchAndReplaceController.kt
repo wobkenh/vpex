@@ -119,7 +119,7 @@ class SearchAndReplaceController : Controller() {
                 if (read == -1) {
                     break
                 }
-                String(buffer, 0, read)
+                String(buffer, 0, read).replace("\r\n", "\n")
             }
 
 
