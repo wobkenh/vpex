@@ -835,6 +835,8 @@ class TabView : Fragment("File") {
                             outputStream.write(text.toByteArray())
                             read = inputStream.skip(pageSize.toLong()).toInt()
                         } else {
+                            // TODO: If the line ending was changed by the user (as in: different than what was initially determined),
+                            // we might want to read into String and replace the line ending
                             read = inputStream.read(buffer)
                             if (read >= 0) {
                                 outputStream.write(buffer, 0, read)

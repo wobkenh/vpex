@@ -11,10 +11,7 @@ import javafx.scene.control.ButtonType
 import javafx.scene.control.Label
 import javafx.scene.control.Tab
 import javafx.scene.control.TabPane
-import javafx.scene.input.ClipboardContent
-import javafx.scene.input.DragEvent
-import javafx.scene.input.KeyCombination
-import javafx.scene.input.TransferMode
+import javafx.scene.input.*
 import javafx.scene.layout.BorderPane
 import javafx.stage.DirectoryChooser
 import javafx.stage.FileChooser
@@ -423,6 +420,14 @@ class MainView : View("VPEX: View, parse and edit large XML Files") {
                             // TODO: Highlight File in Directory (Available in Java 9+)
                             Desktop.getDesktop().open(currentFile.parentFile)
                         }.start()
+                    }
+                }
+                item("Copy Filename") {
+                    disableWhen { view.hasFile.not() }
+                }.action {
+                    val currentFile = view.getFile()
+                    if (currentFile != null) {
+                        Clipboard.getSystemClipboard().putString(currentFile.name)
                     }
                 }
             }
