@@ -56,8 +56,13 @@ class TabView : Fragment("File") {
     val charCountProperty = SimpleIntegerProperty(0)
     val hasFile = SimpleBooleanProperty(false)
     val statusTextProperty = SimpleStringProperty("")
+
+    // Internally, only \n is used. We keep track of the line ending only for when we want to save.
+    // see https://github.com/FXMisc/RichTextFX/issues/211#issuecomment-158661921
+    val lineEnding = SimpleObjectProperty(LineEnding.LF)
     private var file: File? = null
     private var numberFormat = NumberFormat.getInstance(settingsController.getSettings().locale)
+
 
     // Visible for Testing:
     lateinit var codeArea: CodeArea
@@ -758,7 +763,10 @@ class TabView : Fragment("File") {
         logger.info("Saving")
         val file = this.file
         if (file != null && !saveLockProperty.get() && displayMode.get() != DisplayMode.DISK_PAGINATION) {
-            val text = getFullText()
+            var text = getFullText()
+            if (lineEnding.get() == LineEnding.CRLF) {
+                text = text.replace("\n", "\r\n")
+            }
             fileWatcher.startIgnoring(file)
             Files.write(file.toPath(), text.toByteArray())
             fileWatcher.stopIgnoring(file)
@@ -785,7 +793,10 @@ class TabView : Fragment("File") {
                 fileWatcher.stopWatching(oldFile)
             }
             if (displayMode.get() != DisplayMode.DISK_PAGINATION) {
-                val text = getFullText()
+                var text = getFullText()
+                if (lineEnding.get() == LineEnding.CRLF) {
+                    text = text.replace("\n", "\r\n")
+                }
                 Files.write(file.toPath(), text.toByteArray())
                 this.file = file
                 this.hasFile.set(true)
@@ -817,7 +828,11 @@ class TabView : Fragment("File") {
                     var read = 0
                     while (read >= 0) {
                         if (page == currentPage) {
-                            outputStream.write(codeArea.text.toByteArray())
+                            var text = codeArea.text
+                            if (lineEnding.get() == LineEnding.CRLF) {
+                                text = text.replace("\n", "\r\n")
+                            }
+                            outputStream.write(text.toByteArray())
                             read = inputStream.skip(pageSize.toLong()).toInt()
                         } else {
                             read = inputStream.read(buffer)
@@ -872,6 +887,7 @@ class TabView : Fragment("File") {
             moveToPage(1, SyncDirection.TO_CODEAREA) {
                 this.codeArea.moveTo(0, 0)
                 codeArea.undoManager.forgetHistory()
+                determineLineEnding(FileReader(file))
             }
         } else {
             val fullText = file.readText()
@@ -884,6 +900,7 @@ class TabView : Fragment("File") {
                 lineCount.bind(pageTotalLineCount)
                 moveToPage(1, SyncDirection.TO_CODEAREA) {
                     codeArea.undoManager.forgetHistory()
+                    determineLineEnding(StringReader(fullText))
                 }
             } else {
                 logger.info { "Opening file in plain mode" }
@@ -893,6 +910,7 @@ class TabView : Fragment("File") {
                 codeArea.undoManager.forgetHistory()
                 // normally, moveToPage would repaint highlighting. here, we have to do that manually
                 highlightEverything(0)
+                determineLineEnding(StringReader(fullText))
             }
         }
         this.codeArea.moveTo(0, 0)
@@ -904,6 +922,14 @@ class TabView : Fragment("File") {
     =   Private Methods
     =
      ================================ */
+
+    private fun determineLineEnding(reader: Reader) {
+        fileCalculationController.determineLineEndingAndEncoding(reader) { lineEnding ->
+            Platform.runLater {
+                this.lineEnding.set(lineEnding)
+            }
+        }
+    }
 
     private fun closeFile() {
         val oldFile = file

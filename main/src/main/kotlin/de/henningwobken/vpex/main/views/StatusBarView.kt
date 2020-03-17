@@ -7,6 +7,7 @@ import de.henningwobken.vpex.main.controllers.SettingsController
 import de.henningwobken.vpex.main.controllers.VpexExecutor
 import de.henningwobken.vpex.main.model.DisplayMode
 import de.henningwobken.vpex.main.model.InternalResource
+import de.henningwobken.vpex.main.model.LineEnding
 import javafx.beans.property.*
 import javafx.geometry.Pos
 import javafx.scene.Cursor
@@ -42,21 +43,27 @@ class StatusBarView : View() {
     private val isDirty: BooleanProperty = SimpleBooleanProperty(false)
     private val saveLockProperty = SimpleBooleanProperty(false)
     private val statusTextProperty = SimpleStringProperty("")
+
     // We cant set the value of a bound property
     // so we need to save the tab view's status text property for changes from within this class
     private lateinit var tabViewStatusTextProperty: SimpleStringProperty
     private val fileProgressProperty = SimpleDoubleProperty(-1.0)
+
     // same as status text property
     private lateinit var tabViewFileProgressProperty: SimpleDoubleProperty
-    private val displayMode = SimpleObjectProperty<DisplayMode>(DisplayMode.PLAIN)
+    private val displayMode = SimpleObjectProperty(DisplayMode.PLAIN)
     private var lineCount = SimpleIntegerProperty(0)
     private val charCountProperty = SimpleIntegerProperty(0)
+    private val lineEndingProperty = SimpleObjectProperty(LineEnding.LF)
+
     // Functions
     private val moveToPage = SimpleObjectProperty<(Int) -> Unit>()
+
     // Pagination
     private val page = SimpleIntegerProperty(1)
     private val pageDisplayProperty = SimpleIntegerProperty(1)
     private var maxPage = SimpleIntegerProperty(0)
+
     // Selection and Cursor
     private val selectionLength = SimpleIntegerProperty(0)
     private val selectionLines = SimpleIntegerProperty(0)
@@ -164,6 +171,20 @@ class StatusBarView : View() {
                         label(selectionLines.stringBinding {
                             numberFormat.format(it)
                         })
+                    }
+                    hbox {
+                        alignment = Pos.CENTER
+                        label(lineEndingProperty) {
+                            cursor = Cursor.HAND
+                            setOnMouseClicked {
+                                logger.info { "Switching Line Ending" }
+                                if (lineEndingProperty.get() == LineEnding.LF) {
+                                    lineEndingProperty.set(LineEnding.CRLF)
+                                } else {
+                                    lineEndingProperty.set(LineEnding.LF)
+                                }
+                            }
+                        }
                     }
                     hbox(5) {
                         alignment = Pos.CENTER
@@ -307,6 +328,7 @@ class StatusBarView : View() {
         selectionLines.bind(tabView.selectionLines)
         cursorLine.bind(tabView.cursorLine)
         cursorColumn.bind(tabView.cursorColumn)
+        lineEndingProperty.bindBidirectional(tabView.lineEnding)
     }
 
     fun unbind() {
@@ -316,6 +338,8 @@ class StatusBarView : View() {
         saveLockProperty.unbind()
         fileProgressProperty.unbind()
         fileProgressProperty.set(-1.0)
+        lineEndingProperty.unbind()
+        lineEndingProperty.set(LineEnding.LF)
         displayMode.unbind()
         displayMode.set(DisplayMode.PLAIN)
         lineCount.unbind()

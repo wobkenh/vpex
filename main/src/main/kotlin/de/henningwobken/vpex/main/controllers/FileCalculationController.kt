@@ -1,7 +1,9 @@
 package de.henningwobken.vpex.main.controllers
 
+import de.henningwobken.vpex.main.model.LineEnding
 import tornadofx.*
 import java.io.File
+import java.io.Reader
 
 class FileCalculationController : Controller() {
 
@@ -43,5 +45,23 @@ class FileCalculationController : Controller() {
             pageStartingLineCounts.add(pageLineCounts[pageIndex - 1] + pageStartingLineCounts[pageIndex - 1] - 1)
         }
         return pageStartingLineCounts
+    }
+
+
+    fun determineLineEndingAndEncoding(reader: Reader, callback: (lineEnding: LineEnding) -> Unit) {
+        Thread { // TODO: Vpex Executor
+            val buffer = CharArray(5000)
+            val read = reader.read(buffer)
+            var lineEnding = LineEnding.LF
+            for (index in 0 until read) {
+                val char = buffer[index]
+                if (char == '\r') {
+                    lineEnding = LineEnding.CRLF
+                    break
+                }
+                // TODO: Determine encoding
+            }
+            callback(lineEnding)
+        }.start()
     }
 }
