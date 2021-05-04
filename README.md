@@ -6,8 +6,8 @@ VPEX was designed to be quick and reliable while working with files of any size.
 
 ## Installation
 
-VPEX runs on the JVM. You can download the jar from [https://simplex24.de/vpex/vpex.jar](https://simplex24.de/vpex/vpex.jar). 
-You can place the Jar wherever you want. As long as Java is installed and configured as default for .jar files, you can start vpex simply by double clicking the jar. 
+VPEX runs on the JVM. You currently can not download the jar, so you need to clone this repo and build Vpex yourself. This can be done with a simple `mvn clean install`. 
+You can place the resulting Jar wherever you want. As long as Java is installed and configured as default for .jar files, you can start vpex simply by double clicking the jar. 
 
 The config, logs and updater jar (if autoupdate is configured) will be saved in the `.vpex` directory in your home/user directory.
 
